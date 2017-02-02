@@ -1,0 +1,8 @@
+click==6.7
+attrs==15.2.0
+pandas
+opencv-python
+h5py
+eventlet
+scikit-learn
+matplotlib
