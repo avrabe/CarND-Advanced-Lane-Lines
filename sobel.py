@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 
 from lane import Sequential, Undistort, Magnitude_Sobel_Threshold, FileImage, Parallel, Absolute_Sobel_Threshold, \
-    Direction_Sobel_Threshold, Merge_Threshold
+    Direction_Sobel_Threshold, Merge_Threshold, ColorChannel
 
 # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
 objp = np.zeros((6 * 9, 3), np.float32)
@@ -58,9 +58,10 @@ parallel.add(Absolute_Sobel_Threshold(name="grady", orient='y', threshold=(20, 1
 parallel.add(Direction_Sobel_Threshold(name="dir", threshold=(20, 150)))
 model.add(parallel)
 
-#model = Sequential()
-#model.add(Undistort(objpoints=objpoints, imgpoints=imgpoints, name="undistort"))
-#model.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(20, 100)))
+model = Sequential()
+model.add(Undistort(objpoints=objpoints, imgpoints=imgpoints, name="undistort"))
+model.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(20, 100),
+                                   color_channel=ColorChannel.VALUE))
 
 
 fname = os.path.join("test_images", "test1.jpg")

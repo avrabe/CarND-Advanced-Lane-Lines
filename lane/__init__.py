@@ -43,17 +43,74 @@ class Image:
     name = attr.ib(default=haikunator.haikunate())
 
     def get_channel(self, channel):
-        if self.color == Color.GRAY and channel == ColorChannel.GRAY:
-            img = np.copy(self.image)
-            return ImageChannel(color_channel=ColorChannel.GRAY, image=img, name=self.name)
-        elif self.color == Color.RGB and channel == ColorChannel.GRAY:
-            img = np.copy(self.image)
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-            return ImageChannel(color_channel=ColorChannel.GRAY, image=img, name=self.name)
-        elif self.color == Color.BGR and channel == ColorChannel.GRAY:
-            img = np.copy(self.image)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            return ImageChannel(color_channel=ColorChannel.GRAY, image=img, name=self.name)
+        """
+        Extract a specific channel or convert it to it
+        :param channel:
+        :return:
+        """
+        if channel in [ColorChannel.GRAY, ColorChannel.RED,
+                       ColorChannel.BLUE, ColorChannel.GREEN]:
+            img = self.image
+            if self.color == Color.BGR:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            elif self.color == Color.HSV:
+                img = cv2.cvtColor(img, cv2.COLOR_HSV2RGB)
+            elif self.color == Color.HLS:
+                img = cv2.cvtColor(img, cv2.COLOR_HLS2RGB)
+
+            if self.color == Color.GRAY and channel == ColorChannel.GRAY:
+                img = np.copy(self.image)
+                return ImageChannel(color_channel=ColorChannel.GRAY, image=img, name=self.name)
+            elif self.color == Color.RGB and channel == ColorChannel.GRAY:
+                img = np.copy(self.image)
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                return ImageChannel(color_channel=ColorChannel.GRAY, image=img, name=self.name)
+
+            r, g, b = cv2.split(img)
+            if channel == ColorChannel.RED:
+                return ImageChannel(color_channel=ColorChannel.RED, image=np.copy(r), name=self.name)
+            elif channel == ColorChannel.BLUE:
+                return ImageChannel(color_channel=ColorChannel.BLUE, image=np.copy(b), name=self.name)
+            elif channel == ColorChannel.GREEN:
+                return ImageChannel(color_channel=ColorChannel.GREEN, image=np.copy(g), name=self.name)
+
+        if channel in [ColorChannel.HUE, ColorChannel.LIGHTNESS, ColorChannel.SATURATION]:
+            img = self.image
+            if self.color == Color.BGR:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+            elif self.color == Color.RGB:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+            elif self.color == Color.HSV:
+                img = cv2.cvtColor(img, cv2.COLOR_HSV2RGB)
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+
+            h, l, s = cv2.split(img)
+            if channel == ColorChannel.HUE:
+                return ImageChannel(color_channel=ColorChannel.HUE, image=np.copy(h), name=self.name)
+            elif channel == ColorChannel.LIGHTNESS:
+                return ImageChannel(color_channel=ColorChannel.LIGHTNESS, image=np.copy(l), name=self.name)
+            elif channel == ColorChannel.SATURATION:
+                return ImageChannel(color_channel=ColorChannel.SATURATION, image=np.copy(s), name=self.name)
+
+        if channel in [ColorChannel.HUE, ColorChannel.SATURATION, ColorChannel.VALUE]:
+            img = self.image
+            if self.color == Color.BGR:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            elif self.color == Color.RGB:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+            elif self.color == Color.HLS:
+                img = cv2.cvtColor(img, cv2.COLOR_HLS2RGB)
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+
+            h, s, v = cv2.split(img)
+            if channel == ColorChannel.HUE:
+                return ImageChannel(color_channel=ColorChannel.HUE, image=np.copy(h), name=self.name)
+            elif channel == ColorChannel.SATURATION:
+                return ImageChannel(color_channel=ColorChannel.SATURATION, image=np.copy(s), name=self.name)
+            elif channel == ColorChannel.VALUE:
+                return ImageChannel(color_channel=ColorChannel.VALUE, image=np.copy(v), name=self.name)
+
+        print(self.color, channel)
         assert 1 == 0
 
 
