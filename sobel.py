@@ -1,73 +1,94 @@
-# import cv2
-# import numpy as np
-#
-#
-#
-# # Choose a Sobel kernel size
-# ksize = 3 # Choose a larger odd number to smooth gradient measurements
-#
-# # Apply each of the thresholding functions
-# gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=ksize, thresh=(0, 255))
-# grady = abs_sobel_thresh(image, orient='y', sobel_kernel=ksize, thresh=(0, 255))
-# mag_binary = mag_thresh(image, sobel_kernel=ksize, mag_thresh=(0, 255))
-# dir_binary = dir_threshold(image, sobel_kernel=ksize, thresh=(0, np.pi/2))
-# #Try different combinations and see what you get. For example, here is a selection for pixels where both the x and y gradients meet the threshold criteria, or the gradient magnitude and direction are both within their threshold values.
-#
-# combined = np.zeros_like(dir_binary)
-# combined[((gradx == 1) & (grady == 1)) | ((mag_binary == 1) & (dir_binary == 1))] = 1
-
 import glob
 import os.path
 
+import click
 import cv2
-import numpy as np
+from  moviepy.video.io.VideoFileClip import VideoFileClip
 
-from lane import Sequential, Undistort, Magnitude_Sobel_Threshold, FileImage, Parallel, Absolute_Sobel_Threshold, \
-    Direction_Sobel_Threshold, Merge_Threshold, ColorChannel
-
-# prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-objp = np.zeros((6 * 9, 3), np.float32)
-objp[:, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2)
-
-# Arrays to store object points and image points from all the images.
-objpoints = []  # 3d points in real world space
-imgpoints = []  # 2d points in image plane.
-
-# Make a list of calibration images
-images = glob.glob('camera_cal/calibration*.jpg')
-
-# Step through the list and search for chessboard corners
-for fname in images:
-    img = cv2.imread(fname)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Find the chessboard corners
-    ret, corners = cv2.findChessboardCorners(gray, (9, 6), None)
-
-    # If found, add object points, image points
-    if ret is True:
-        objpoints.append(objp)
-        imgpoints.append(corners)
+from lane import Sequential, Undistort, FileImage, Parallel, Merge_Threshold, Image, Color, ColorChannel, \
+    ColorChannel_Threshold, \
+    ImageChannel, Absolute_Sobel_Threshold, Warp, LaneLines, No_Op, Unwarp, Overlay, calibrate_camera
 
 model = Sequential()
-model.add(Undistort(objpoints=objpoints, imgpoints=imgpoints, name="undistort"))
-parallel = Parallel(merge=Merge_Threshold())
-parallel.add(Magnitude_Sobel_Threshold(name="mag", sobel_kernel=9, threshold=(30, 100)))
-parallel.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(20, 100)))
-parallel.add(Absolute_Sobel_Threshold(name="grady", orient='y', threshold=(20, 100)))
-parallel.add(Direction_Sobel_Threshold(name="dir", threshold=(20, 150)))
-model.add(parallel)
+model.add(Undistort(calibrate=calibrate_camera('camera_cal/calibration*.jpg'), name="undistort"))
 
-model = Sequential()
-model.add(Undistort(objpoints=objpoints, imgpoints=imgpoints, name="undistort"))
-model.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(20, 100),
-                                   color_channel=ColorChannel.VALUE))
+ll_parallel = Parallel(merge=Overlay(base="undistort"))
+
+color_parallel = Parallel(merge=Merge_Threshold(merge="(('v' >= 1) & ('s' >= 1))", binary=True, name="color"),
+                          name="color_threshold")
+color_parallel.add(ColorChannel_Threshold(name="v", color_channel=ColorChannel.VALUE, threshold=(50, 255)))
+color_parallel.add(ColorChannel_Threshold(name="s", color_channel=ColorChannel.SATURATION, threshold=(100, 255)))
+
+parallel = Parallel(merge=Merge_Threshold(merge="(('gradx' >= 1) & ('grady' >= 1) | ('color' >= 1))", binary=False),
+                    name="thresholds")
+parallel.add(color_parallel)
+parallel.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(12, 255)))
+parallel.add(Absolute_Sobel_Threshold(name="grady", orient='y', threshold=(25, 255)))
+
+threshold = Sequential()
+threshold.add(parallel)
+threshold.add(Warp(name="warp", height_pct=.64))
+threshold.add(LaneLines(name="lane_lines", always_blind_search=False))
+threshold.add(Unwarp(name="warp", minv="warp"))
+
+model.add(ll_parallel)
+ll_parallel.add(No_Op(name="undistort"))
+ll_parallel.add(threshold)
 
 
-fname = os.path.join("test_images", "test1.jpg")
-img = FileImage(filename=fname)
+def process_video_image(image):
+    img = Image(image=image, color=Color.RGB)
+    result = model.call(img).image
+    return result
 
-foo = model.call(img)
-print(foo.name, foo.image.shape)
 
-cv2.imwrite("foo.png", cv2.cvtColor(foo.image, cv2.COLOR_GRAY2BGR))
+@click.group(chain=True)
+def cli():
+    pass
+
+
+@cli.command()
+@click.option('-o', '--output', default=".",
+              help='The output directory',
+              type=click.Path(exists=True))
+@click.option('-i', '--input', multiple=True,
+              help='The input image(s)')
+def videos(output, input):
+    videos = []
+    for i in input:
+        videos.extend(glob.glob(i))
+
+    for idx, fname in enumerate(videos):
+        output_filename = "output_%d_%s" % (idx, os.path.basename(fname))
+        output_video = os.path.join(output, output_filename)
+        clip1 = VideoFileClip(fname)
+        white_clip = clip1.fl_image(process_video_image)  # NOTE: this function expects color images!!
+        white_clip.write_videofile(output_video, audio=False)
+        print("Processed video %s to %s" % (fname, output_filename))
+
+
+@cli.command()
+@click.option('-o', '--output', default=".",
+              help='The output directory',
+              type=click.Path(exists=True))
+@click.option('-i', '--input', multiple=True,
+              help='The input image(s)')
+def images(output, input):
+    images = []
+    for i in input:
+        images.extend(glob.glob(i))
+
+    for idx, fname in enumerate(images):
+        output_filename = "output_%d_%s" % (idx, os.path.basename(fname))
+        output_image = os.path.join(output, output_filename)
+        img = FileImage(filename=fname)
+        foo = model.call(img)
+        if isinstance(foo, ImageChannel) or foo.color == Color.GRAY:
+            cv2.imwrite(output_image, cv2.cvtColor(foo.image, cv2.COLOR_GRAY2BGR))
+        else:
+            cv2.imwrite(output_image, cv2.cvtColor(foo.image, cv2.COLOR_RGB2BGR))
+        print("Processed image %s to %s" % (fname, output_filename))
+
+
+if __name__ == '__main__':
+    cli()
