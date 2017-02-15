@@ -369,10 +369,27 @@ class Overlay:
             if i.name == self.base:
                 base_image = np.copy(i.image)
                 base_color = i.color
-            d.append(i.image)
+            else:
+                d.append(i.image)
 
         for overlay in d:
-            base_image = cv2.addWeighted(base_image, 1.0, overlay, 0.5, 0)
+            bkg = np.copy(overlay)
+            for i in range(0, 2):
+                nonzero = overlay[:, :, i].nonzero()
+                nonzeroy = np.array(nonzero[0])
+                nonzerox = np.array(nonzero[1])
+                bkg[nonzero] = [255, 255, 255]
+            base_image = cv2.addWeighted(base_image, 1.0, bkg, -1.0, 0)
+            base_image = cv2.addWeighted(base_image, 1.0, overlay, 1.0, 0)
+        if 'lane_lines' in meta.keys():
+            side_pos = meta['lane_lines']['side_pos']
+            cv2.putText(base_image, side_pos, (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255))
+            lane_line_image = meta['lane_lines']['lane_line_image'].image
+            resized_image = cv2.resize(lane_line_image, (0,0), fx=0.3, fy=0.3)
+
+            x_offset = base_image.shape[1] - resized_image.shape[1] - 10
+            y_offset = 10
+            base_image[y_offset:y_offset + resized_image.shape[0], x_offset:x_offset + resized_image.shape[1]] = resized_image
 
         return Image(image=base_image, color=base_color, name=self.name, meta=meta)
 
@@ -382,18 +399,27 @@ class LaneLines:
     name = attr.ib(default=haikunator.haikunate())
     plot = attr.ib(default=True)
     always_blind_search = attr.ib(default=False)
+    max_one_eyed_search = attr.ib(default=2)
 
     def __attrs_post_init__(self):
         self.left_fit = None
         self.right_fit = None
+        self.counter = 0
 
     def call(self, image):
         binary_warped = image.image if isinstance(image, ImageChannel) else image.get_channel(ColorChannel.GRAY).image
-        if self.always_blind_search or (self.left_fit is None and self.right_fit is None):
-            out_img = self.__blind_search(binary_warped)
+        meta = image.meta.copy()
+        if self.always_blind_search or (
+                        self.left_fit is None and self.right_fit is None) or self.counter > self.max_one_eyed_search:
+            side_pos, out_img, b_warped = self.__blind_search(binary_warped)
+            self.counter = 0
         else:
-            out_img = self.__one_eyed_search(binary_warped)
-        return Image(image=out_img, color=Color.RGB, name=self.name, meta=image.meta.copy())
+            side_pos, out_img, b_warped = self.__one_eyed_search(binary_warped)
+            self.counter += 1
+        ret = Image(image=out_img, color=Color.RGB, name=self.name, meta=meta)
+        meta[self.name] = {'side_pos': side_pos,
+                           'lane_line_image': Image(image=b_warped, color=Color.RGB, name=self.name, meta=meta)}
+        return ret
 
     def __one_eyed_search(self, binary_warped):
         # Assume you now have a new warped binary image 
@@ -402,7 +428,7 @@ class LaneLines:
         nonzero = binary_warped.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
-        margin = 150 # 100
+        margin = 150  # 100
         left_lane_inds = (
             (nonzerox > (
                 self.left_fit[0] * (nonzeroy ** 2) + self.left_fit[1] * nonzeroy + self.left_fit[2] - margin)) & (
@@ -447,7 +473,7 @@ class LaneLines:
         cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
         out_img = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
-        return out_img
+        return self.__plot_lane_line(out_img)
 
     def __blind_search(self, binary_warped):
         # Assuming you have created a warped binary image called "binary_warped"
@@ -475,7 +501,7 @@ class LaneLines:
         # Set the width of the windows +/- margin
         margin = 100
         # Set minimum number of pixels found to recenter window
-        minpix = 50
+        minpix = 70
         # Create empty lists to receive left and right lane pixel indices
         left_lane_inds = []
         right_lane_inds = []
@@ -519,22 +545,42 @@ class LaneLines:
         # Fit a second order polynomial to each
         self.left_fit = np.polyfit(lefty, leftx, 2)
         self.right_fit = np.polyfit(righty, rightx, 2)
-        # return out_img
-        return self.__one_eyed_search(binary_warped)
 
-    def __plot_blind_search(self, binary_warped):
+        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+
+        return self.__plot_lane_line(out_img)
+        # return self.__one_eyed_search(binary_warped)
+
+    def __plot_lane_line(self, binary_warped):
         # Generate x and y values for plotting
+        out_img = np.zeros_like(binary_warped)
         ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
         left_fitx = self.left_fit[0] * ploty ** 2 + self.left_fit[1] * ploty + self.left_fit[2]
         right_fitx = self.right_fit[0] * ploty ** 2 + self.right_fit[1] * ploty + self.right_fit[2]
 
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-        plt.imshow(out_img)
-        plt.plot(left_fitx, ploty, color='yellow')
-        plt.plot(right_fitx, ploty, color='yellow')
-        plt.xlim(0, 1280)
-        plt.ylim(720, 0)
+        xm_per_pix = 3.7 / 614
+        camera_center = (left_fitx[-1] + right_fitx[-1]) / 2
+        center_diff = float((camera_center - binary_warped.shape[1] / 2) * xm_per_pix)
+        side_pos = 'left'
+        if center_diff <= 0:
+            side_pos = 'right'
+        side_pos = "%.2fm to the %s (center %.2f %.2f) %.2f" % \
+                   (center_diff, side_pos, camera_center, binary_warped.shape[1]/2, xm_per_pix)
+        margin = 10
+
+        left_line_window1 = np.array([np.transpose(np.vstack([left_fitx - margin, ploty]))])
+        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx + margin, ploty])))])
+        left_line_pts = np.hstack((left_line_window1, left_line_window2))
+        right_line_window1 = np.array([np.transpose(np.vstack([right_fitx - margin, ploty]))])
+        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx + margin, ploty])))])
+        right_line_pts = np.hstack((right_line_window1, right_line_window2))
+
+        for i in [binary_warped, out_img]:
+            cv2.fillPoly(i, np.int_([left_line_pts]), (0, 255, 255))
+            cv2.fillPoly(i, np.int_([right_line_pts]), (0, 255, 255))
+
+        return side_pos, out_img, binary_warped
 
 
 @attr.s
@@ -610,42 +656,3 @@ class Unwarp:
         img = cv2.warpPerspective(img, Minv, (w, h))
         return Image(image=img, color=image.color, name=self.name, meta=image.meta.copy())
 
-
-def flip(self):
-    """
-    Flip the image
-    """
-    try:
-        if self.image:
-            self.image = cv2.flip(self.image, 1)
-    except:
-        print("Failure on flip. Reset image.")
-        self.image = None
-
-
-def adjust_brightness(self):
-    """
-    Randomly adjust the brightness
-    """
-    if self.image:
-        hsv = cv2.cvtColor(self.image, cv2.COLOR_RGB2HSV)  # convert it to hsv
-
-        h, s, v = cv2.split(hsv)
-        v += np.clip(v + random.randint(-5, 15), 0, 255).astype('uint8')
-        final_hsv = cv2.merge((h, s, v))
-
-        image = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2RGB)
-        self.image = image
-
-
-def normalize_image(self):
-    """
-    Normalize the image
-    """
-    if self.image:
-        r, g, b = cv2.split(self.image)
-        x = r.copy()
-        r = cv2.normalize(r, x)
-        g = cv2.normalize(g, x)
-        b = cv2.normalize(b, x)
-        self.image = cv2.merge((r, g, b))

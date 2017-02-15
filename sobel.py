@@ -9,37 +9,66 @@ from lane import Sequential, Undistort, FileImage, Parallel, Merge_Threshold, Im
     ColorChannel_Threshold, \
     ImageChannel, Absolute_Sobel_Threshold, Warp, LaneLines, No_Op, Unwarp, Overlay, calibrate_camera
 
-model = Sequential()
-model.add(Undistort(calibrate=calibrate_camera('camera_cal/calibration*.jpg'), name="undistort"))
 
-ll_parallel = Parallel(merge=Overlay(base="undistort"))
+def binary_threshold():
+    color_parallel = Parallel(merge=Merge_Threshold(merge="(('v' >= 1) & ('s' >= 1))", binary=True, name="color"),
+                              name="color_threshold")
+    color_parallel.add(ColorChannel_Threshold(name="v", color_channel=ColorChannel.VALUE, threshold=(50, 255)))
+    color_parallel.add(ColorChannel_Threshold(name="s", color_channel=ColorChannel.SATURATION, threshold=(100, 255)))
+    parallel = Parallel(merge=Merge_Threshold(merge="(('gradx' >= 1) & ('grady' >= 1) | ('color' >= 1))", binary=False),
+                        name="thresholds")
+    parallel.add(color_parallel)
+    parallel.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(12, 255)))
+    parallel.add(Absolute_Sobel_Threshold(name="grady", orient='y', threshold=(25, 255)))
+    return parallel
 
-color_parallel = Parallel(merge=Merge_Threshold(merge="(('v' >= 1) & ('s' >= 1))", binary=True, name="color"),
-                          name="color_threshold")
-color_parallel.add(ColorChannel_Threshold(name="v", color_channel=ColorChannel.VALUE, threshold=(50, 255)))
-color_parallel.add(ColorChannel_Threshold(name="s", color_channel=ColorChannel.SATURATION, threshold=(100, 255)))
 
-parallel = Parallel(merge=Merge_Threshold(merge="(('gradx' >= 1) & ('grady' >= 1) | ('color' >= 1))", binary=False),
-                    name="thresholds")
-parallel.add(color_parallel)
-parallel.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(12, 255)))
-parallel.add(Absolute_Sobel_Threshold(name="grady", orient='y', threshold=(25, 255)))
+def undistort_model():
+    model = Sequential()
+    model.add(Undistort(calibrate=calibrate_camera('camera_cal/calibration*.jpg'), name="undistort"))
+    return model
 
-threshold = Sequential()
-threshold.add(parallel)
-threshold.add(Warp(name="warp", height_pct=.64))
-threshold.add(LaneLines(name="lane_lines", always_blind_search=False))
-threshold.add(Unwarp(name="warp", minv="warp"))
 
-model.add(ll_parallel)
-ll_parallel.add(No_Op(name="undistort"))
-ll_parallel.add(threshold)
+def full_model():
+    model = undistort_model()
+    threshold = Sequential()
+    threshold.add(binary_threshold())
+    threshold.add(Warp(name="warp", height_pct=.64, bot_width=.60, mid_width=.1))
+    threshold.add(LaneLines(name="lane_lines", always_blind_search=False))
+    threshold.add(Unwarp(name="unwarp", minv="warp"))
+    ll_parallel = Parallel(merge=Overlay(base="undistort"))
+    ll_parallel.add(No_Op(name="undistort"))
+    ll_parallel.add(threshold)
+    model.add(ll_parallel)
+    return model
 
+
+def threshold_model():
+    model = undistort_model()
+    model.add(binary_threshold())
+    return model
+
+def warp_threshold_model():
+    model = threshold_model()
+    model.add(Warp(name="warp", height_pct=.64, bot_width=.60, mid_width=.1))
+    return model
+
+
+models = {
+    'full': full_model,
+    'undistort': undistort_model,
+    'undistort_threshold': threshold_model,
+    'undistort_threshold_warp': warp_threshold_model
+}
+
+
+video_model = None
 
 def process_video_image(image):
     img = Image(image=image, color=Color.RGB)
-    result = model.call(img).image
+    result = video_model.call(img).image
     return result
+
 
 
 @click.group(chain=True)
@@ -53,7 +82,11 @@ def cli():
               type=click.Path(exists=True))
 @click.option('-i', '--input', multiple=True,
               help='The input image(s)')
-def videos(output, input):
+@click.option('-m', '--model', default='full', type=click.Choice(models.keys()))
+def videos(output, input, model):
+    global video_model
+    video_model = models[model]()
+
     videos = []
     for i in input:
         videos.extend(glob.glob(i))
@@ -67,13 +100,17 @@ def videos(output, input):
         print("Processed video %s to %s" % (fname, output_filename))
 
 
+
 @cli.command()
 @click.option('-o', '--output', default=".",
               help='The output directory',
               type=click.Path(exists=True))
 @click.option('-i', '--input', multiple=True,
               help='The input image(s)')
-def images(output, input):
+@click.option('-m', '--model', default='full', type=click.Choice(models.keys()))
+def images(output, input, model):
+    model = models[model]()
+
     images = []
     for i in input:
         images.extend(glob.glob(i))
