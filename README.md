@@ -34,14 +34,10 @@ The `challenge_video.mp4` video is an extra (and optional) challenge for you if 
 
 If you're feeling ambitious (again, totally optional though), don't stop there!  We encourage you to go out and take video of your own, calibrate your camera and show us how you would implement this project from scratch!
 
-<video width="320" height="240" controls>
-  <source src="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/project_video.mp4?raw=true" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
+<a href="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/output_images/output_full_0_project_video.mp4?raw=true">
+<img src="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/output_images/output_full_0_project_video.gif?raw=true" width="320" height="180"/><br>
+Output video
+</a>
 
-<video width="320" height="240" controls>
-  <source src="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/output_images/output_full_0_project_video.mp4?raw=true" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
