@@ -33,11 +33,14 @@ class Overlay:
                 nonzeroy = np.array(nonzero[0])
                 nonzerox = np.array(nonzero[1])
                 bkg[nonzero] = [255, 255, 255]
-            base_image = cv2.addWeighted(base_image, 1.0, bkg, -1.0, 0)
+            base_image = cv2.addWeighted(base_image, 1.0, bkg, -.70, 0)
             base_image = cv2.addWeighted(base_image, 1.0, overlay, 1.0, 0)
         if 'lane_lines' in meta.keys():
             side_pos = meta['lane_lines']['side_pos']
-            cv2.putText(base_image, side_pos, (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255))
+            y0, dy = 50, 50
+            for i, line in enumerate(side_pos.split('\n')):
+                y = y0 + i * dy
+                cv2.putText(base_image, line, (50, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
             lane_line_image = meta['lane_lines']['lane_line_image'].image
             resized_image = cv2.resize(lane_line_image, (0, 0), fx=0.3, fy=0.3)
 
@@ -55,6 +58,10 @@ class LaneLines:
     plot = attr.ib(default=True)
     always_blind_search = attr.ib(default=False)
     max_one_eyed_search = attr.ib(default=2)
+    smooth = attr.ib(default=True)
+    ym_per_pix = attr.ib(default=30 / 720)  # meters per pixel in y dimension
+    xm_per_pix = attr.ib(default=3.7 / 614)  # meters per pixel in x dimension
+    return_binary_warped = attr.ib(default=False)
 
     def __attrs_post_init__(self):
         self.left_fit = None
@@ -101,12 +108,16 @@ class LaneLines:
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
         # Fit a second order polynomial to each
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
+
+        new_left_fit = np.polyfit(lefty, leftx, 2)
+        new_right_fit = np.polyfit(righty, rightx, 2)
+
+        self.left_fit = (self.left_fit + new_left_fit) / 2 if self.smooth else new_left_fit
+        self.right_fit = (self.right_fit + new_right_fit) / 2 if self.smooth else new_right_fit
         # Generate x and y values for plotting
         ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
-        left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
-        right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+        left_fitx = self.left_fit[0] * ploty ** 2 + self.left_fit[1] * ploty + self.left_fit[2]
+        right_fitx = self.right_fit[0] * ploty ** 2 + self.right_fit[1] * ploty + self.right_fit[2]
 
         # Generate a polygon to illustrate the search window area
         # And recast the x and y points into usable format for cv2.fillPoly()
@@ -197,6 +208,8 @@ class LaneLines:
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
 
+        self.leftx = leftx
+        self.rightx = rightx
         # Fit a second order polynomial to each
         self.left_fit = np.polyfit(lefty, leftx, 2)
         self.right_fit = np.polyfit(righty, rightx, 2)
@@ -207,6 +220,22 @@ class LaneLines:
         return self.__plot_lane_line(out_img)
         # return self.__one_eyed_search(binary_warped)
 
+    def __measure_curvature(self, ploty, center_fitx):
+        y_eval = np.max(ploty)
+        center_fit_cr = np.polyfit(ploty * self.ym_per_pix, center_fitx * self.xm_per_pix, 2)
+
+        # print(center_fit_cr)
+        # Calculate the new radii of curvature
+        center_curverad = ((1 + (
+            2 * center_fit_cr[0] * y_eval * self.ym_per_pix + center_fit_cr[1]) ** 2) ** 1.5) / np.absolute(
+            2 * center_fit_cr[0])
+
+        # print(center_curverad)
+        # Now our radius of curvature is in meters
+        return "Radius of curvature: %9.2fm" % (center_curverad)
+
+        # Example values: 632.1 m    626.2 m
+
     def __plot_lane_line(self, binary_warped):
         # Generate x and y values for plotting
         out_img = np.zeros_like(binary_warped)
@@ -214,27 +243,36 @@ class LaneLines:
         left_fitx = self.left_fit[0] * ploty ** 2 + self.left_fit[1] * ploty + self.left_fit[2]
         right_fitx = self.right_fit[0] * ploty ** 2 + self.right_fit[1] * ploty + self.right_fit[2]
 
-        xm_per_pix = 3.7 / 614
+        center_fitx = left_fitx + (left_fitx + right_fitx) / 2
+
         camera_center = (left_fitx[-1] + right_fitx[-1]) / 2
-        center_diff = float((camera_center - binary_warped.shape[1] / 2) * xm_per_pix)
+        center_diff = float((camera_center - binary_warped.shape[1] / 2) * self.xm_per_pix)
         side_pos = 'left'
         if center_diff <= 0:
             side_pos = 'right'
-        side_pos = "%.2fm to the %s (center %.2f %.2f) %.2f" % \
-                   (center_diff, side_pos, camera_center, binary_warped.shape[1] / 2, xm_per_pix)
-        margin = 10
+        side_pos = "%.2fm to the %s\n%s" % \
+                   (center_diff, side_pos,
+                    self.__measure_curvature(ploty, center_fitx))
+        margin = 20
 
         left_line_window1 = np.array([np.transpose(np.vstack([left_fitx - margin, ploty]))])
         left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx + margin, ploty])))])
         left_line_pts = np.hstack((left_line_window1, left_line_window2))
+        center_line_window1 = np.array(
+            [np.transpose(np.vstack([left_fitx + (right_fitx - left_fitx) / 2 - margin / 2, ploty]))])
+        center_line_window2 = np.array(
+            [np.flipud(np.transpose(np.vstack([left_fitx + (right_fitx - left_fitx) / 2 + margin / 2, ploty])))])
+        center_line_pts = np.hstack((center_line_window1, center_line_window2))
         right_line_window1 = np.array([np.transpose(np.vstack([right_fitx - margin, ploty]))])
         right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx + margin, ploty])))])
         right_line_pts = np.hstack((right_line_window1, right_line_window2))
+        complete_line_pts = np.hstack((left_line_window1, right_line_window2))
 
-        for i in [binary_warped, out_img]:
-            cv2.fillPoly(i, np.int_([left_line_pts]), (0, 255, 255))
-            cv2.fillPoly(i, np.int_([right_line_pts]), (0, 255, 255))
+        for i in [out_img]:
+            cv2.fillPoly(i, np.int_([complete_line_pts]), (0xbc, 0xe3, 0xff))
+            cv2.fillPoly(i, np.int_([center_line_pts]), (0x40, 0x62, 0xbb))
+            cv2.fillPoly(i, np.int_([left_line_pts]), (00, 0x48, 0x7c))
+            cv2.fillPoly(i, np.int_([right_line_pts]), (0x3e, 0x66, 0x80))
 
+        out_img = out_img if not self.return_binary_warped else binary_warped
         return side_pos, out_img, binary_warped
-
-
