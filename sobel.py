@@ -3,22 +3,24 @@ import os.path
 
 import click
 import cv2
+import sys
 from  moviepy.video.io.VideoFileClip import VideoFileClip
 
 from lane import Sequential, Undistort, FileImage, Parallel, Merge_Threshold, Image, Color, ColorChannel, \
     ColorChannel_Threshold, \
-    ImageChannel, Absolute_Sobel_Threshold, Warp, LaneLines, No_Op, Unwarp, Overlay, calibrate_camera
+    ImageChannel, Absolute_Sobel_Threshold, Warp, LaneLines, No_Op, Unwarp, Overlay, calibrate_camera, GaussianBlur, \
+    DeNoise
 
 
 def binary_threshold():
     color_parallel = Parallel(merge=Merge_Threshold(merge="(('v' >= 1) & ('s' >= 1))", binary=True, name="color"),
                               name="color_threshold")
-    color_parallel.add(ColorChannel_Threshold(name="v", color_channel=ColorChannel.VALUE, threshold=(50, 255)))
+    color_parallel.add(ColorChannel_Threshold(name="v", color_channel=ColorChannel.VALUE, threshold=(150, 255)))
     color_parallel.add(ColorChannel_Threshold(name="s", color_channel=ColorChannel.SATURATION, threshold=(100, 255)))
     parallel = Parallel(merge=Merge_Threshold(merge="(('gradx' >= 1) & ('grady' >= 1) | ('color' >= 1))", binary=False),
                         name="thresholds")
     parallel.add(color_parallel)
-    parallel.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(12, 255)))
+    parallel.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(50, 255)))
     parallel.add(Absolute_Sobel_Threshold(name="grady", orient='y', threshold=(25, 255)))
     return parallel
 
@@ -32,9 +34,12 @@ def undistort_model():
 def full_model():
     model = undistort_model()
     threshold = Sequential()
+    #threshold.add(DeNoise())
+    threshold.add(GaussianBlur())
     threshold.add(binary_threshold())
-    threshold.add(Warp(name="warp", height_pct=.64, bot_width=.60, mid_width=.1))
-    threshold.add(LaneLines(name="lane_lines", always_blind_search=False))
+    #threshold.add(DeNoise())
+    threshold.add(Warp(name="warp", height_pct=.64, bot_width=.50, mid_width=.08))
+    threshold.add(LaneLines(name="lane_lines", always_blind_search=False, max_one_eyed_search=1))
     threshold.add(Unwarp(name="unwarp", minv="warp"))
     ll_parallel = Parallel(merge=Overlay(base="undistort"))
     ll_parallel.add(No_Op(name="undistort"))
@@ -45,6 +50,7 @@ def full_model():
 
 def threshold_model():
     model = undistort_model()
+    model.add(GaussianBlur())
     model.add(binary_threshold())
     return model
 
@@ -99,6 +105,7 @@ def videos(output, input, model):
         white_clip.write_videofile(output_video, audio=False)
         print("Processed video %s to %s" % (fname, output_filename))
 
+    sys.exit()
 
 
 @cli.command()
@@ -125,6 +132,7 @@ def images(output, input, model):
         else:
             cv2.imwrite(output_image, cv2.cvtColor(foo.image, cv2.COLOR_RGB2BGR))
         print("Processed image %s to %s" % (fname, output_filename))
+    sys.exit()
 
 
 if __name__ == '__main__':

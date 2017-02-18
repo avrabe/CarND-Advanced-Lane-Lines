@@ -1,5 +1,7 @@
 import glob
+import threading
 from enum import Enum
+from queue import Queue
 
 import attr
 import cv2
@@ -189,6 +191,24 @@ class Sequential:
         return img
 
 
+class myThread(threading.Thread):
+    def __init__(self, threadLock, queue, layer):
+        threading.Thread.__init__(self, daemon=True)
+        self.threadLock = threadLock
+        self.layer = layer
+        self.name = layer.name
+        self.queue = queue
+
+    def run(self):
+        while True:
+            (image, img) = self.queue.get()
+            ret = self.layer.call(image)
+            self.threadLock.acquire()
+            img.append(ret)
+            self.threadLock.release()
+            self.queue.task_done()
+
+
 @attr.s
 class Parallel:
     merge = attr.ib(default=None)
@@ -196,15 +216,24 @@ class Parallel:
 
     def __attrs_post_init__(self):
         self.layers = []
+        self.threads = []
+        self.threadLock = threading.Lock()
 
     def add(self, layer):
         self.layers.append(layer)
+        queue = Queue()
+        thread = myThread(self.threadLock, queue, layer)
+        thread.start()
+        self.threads.append(thread)
 
     def call(self, image):
         img = []
-        for layer in self.layers:
-            # print(self.name, image.name, layer.name)
-            img.append(layer.call(image))
+
+        for t in self.threads:
+            t.queue.put((image, img))
+        for t in self.threads:
+            t.queue.join()
+
         if self.merge:
             # print(self.name, "merge")
             img = self.merge.call(img)
@@ -234,6 +263,43 @@ class No_Op:
             return Image(image=np.copy(image.image), color=image.color, name=self.name, meta=image.meta.copy())
         elif isinstance(image, Image):
             return ImageChannel(image=np.copy(image.image), color_channel=image.color_channel, name=self.name)
+        else:
+            assert 1 == 0
+
+
+@attr.s
+class GaussianBlur:
+    name = attr.ib(default=haikunator.haikunate())
+    kernel_size = attr.ib(default=7)
+
+    def call(self, image):
+        img = np.copy(image.image)
+        img = cv2.GaussianBlur(img, (self.kernel_size, self.kernel_size), 0)
+        if isinstance(image, Image):
+            return Image(image=img, color=image.color, name=self.name, meta=image.meta.copy())
+        elif isinstance(image, Image):
+            return ImageChannel(image=img, color_channel=image.color_channel, name=self.name)
+        else:
+            assert 1 == 0
+
+
+@attr.s
+class DeNoise:
+    name = attr.ib(default=haikunator.haikunate())
+    kernel_size = attr.ib(default=7)
+    h = attr.ib(default=7)
+
+    def call(self, image):
+        img = np.copy(image.image)
+        if isinstance(image, Image) and not image.color == Color.GRAY:
+            img = cv2.fastNlMeansDenoisingColored(img, None, self.h)
+            return Image(image=img, color=image.color, name=self.name, meta=image.meta.copy())
+        elif isinstance(image, Image) and image.color == Color.GRAY:
+            img = cv2.fastNlMeansDenoising(img, None, self.h)
+            return Image(image=img, color=image.color, name=self.name, meta=image.meta.copy())
+        elif isinstance(image, ImageChannel):
+            img = cv2.fastNlMeansDenoising(img, None, self.h)
+            return ImageChannel(image=img, color_channel=image.color_channel, name=self.name)
         else:
             assert 1 == 0
 
@@ -385,11 +451,12 @@ class Overlay:
             side_pos = meta['lane_lines']['side_pos']
             cv2.putText(base_image, side_pos, (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255))
             lane_line_image = meta['lane_lines']['lane_line_image'].image
-            resized_image = cv2.resize(lane_line_image, (0,0), fx=0.3, fy=0.3)
+            resized_image = cv2.resize(lane_line_image, (0, 0), fx=0.3, fy=0.3)
 
             x_offset = base_image.shape[1] - resized_image.shape[1] - 10
             y_offset = 10
-            base_image[y_offset:y_offset + resized_image.shape[0], x_offset:x_offset + resized_image.shape[1]] = resized_image
+            base_image[y_offset:y_offset + resized_image.shape[0],
+            x_offset:x_offset + resized_image.shape[1]] = resized_image
 
         return Image(image=base_image, color=base_color, name=self.name, meta=meta)
 
@@ -566,7 +633,7 @@ class LaneLines:
         if center_diff <= 0:
             side_pos = 'right'
         side_pos = "%.2fm to the %s (center %.2f %.2f) %.2f" % \
-                   (center_diff, side_pos, camera_center, binary_warped.shape[1]/2, xm_per_pix)
+                   (center_diff, side_pos, camera_center, binary_warped.shape[1] / 2, xm_per_pix)
         margin = 10
 
         left_line_window1 = np.array([np.transpose(np.vstack([left_fitx - margin, ploty]))])
@@ -655,4 +722,3 @@ class Unwarp:
         Minv = image.meta[self.minv]
         img = cv2.warpPerspective(img, Minv, (w, h))
         return Image(image=img, color=image.color, name=self.name, meta=image.meta.copy())
-
