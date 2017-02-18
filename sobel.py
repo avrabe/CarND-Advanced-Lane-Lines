@@ -1,15 +1,15 @@
 import glob
 import os.path
+import sys
 
 import click
-import cv2
-import sys
 from  moviepy.video.io.VideoFileClip import VideoFileClip
 
-from lane import Sequential, Undistort, FileImage, Parallel, Merge_Threshold, Image, Color, ColorChannel, \
-    ColorChannel_Threshold, \
-    ImageChannel, Absolute_Sobel_Threshold, Warp, LaneLines, No_Op, Unwarp, Overlay, calibrate_camera, GaussianBlur, \
-    DeNoise
+from lane import LaneLines, Overlay
+from lane.camera import calibrate_camera, Undistort
+from lane.image import FileImage, GaussianBlur, Warp, Unwarp, Image, imwrite, Color, ColorChannel
+from lane.layer import Sequential, Parallel, No_Op
+from lane.threshold import ColorChannel_Threshold, Absolute_Sobel_Threshold, Merge_Threshold
 
 
 def binary_threshold():
@@ -34,10 +34,10 @@ def undistort_model():
 def full_model():
     model = undistort_model()
     threshold = Sequential()
-    #threshold.add(DeNoise())
+    # threshold.add(DeNoise())
     threshold.add(GaussianBlur())
     threshold.add(binary_threshold())
-    #threshold.add(DeNoise())
+    # threshold.add(DeNoise())
     threshold.add(Warp(name="warp", height_pct=.64, bot_width=.50, mid_width=.08))
     threshold.add(LaneLines(name="lane_lines", always_blind_search=False, max_one_eyed_search=1))
     threshold.add(Unwarp(name="unwarp", minv="warp"))
@@ -54,6 +54,7 @@ def threshold_model():
     model.add(binary_threshold())
     return model
 
+
 def warp_threshold_model():
     model = threshold_model()
     model.add(Warp(name="warp", height_pct=.64, bot_width=.60, mid_width=.1))
@@ -67,14 +68,13 @@ models = {
     'undistort_threshold_warp': warp_threshold_model
 }
 
-
 video_model = None
+
 
 def process_video_image(image):
     img = Image(image=image, color=Color.RGB)
     result = video_model.call(img).image
     return result
-
 
 
 @click.group(chain=True)
@@ -127,10 +127,7 @@ def images(output, input, model):
         output_image = os.path.join(output, output_filename)
         img = FileImage(filename=fname)
         foo = model.call(img)
-        if isinstance(foo, ImageChannel) or foo.color == Color.GRAY:
-            cv2.imwrite(output_image, cv2.cvtColor(foo.image, cv2.COLOR_GRAY2BGR))
-        else:
-            cv2.imwrite(output_image, cv2.cvtColor(foo.image, cv2.COLOR_RGB2BGR))
+        imwrite(foo, output_image)
         print("Processed image %s to %s" % (fname, output_filename))
     sys.exit()
 
