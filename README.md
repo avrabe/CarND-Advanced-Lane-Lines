@@ -203,7 +203,7 @@ python sobel.py images -i test_images/*.jpg -o output_images -m undistort_thresh
 
 ##### Detect the lane line
 
-The radius of the curvature is calculated in the function [`__measure_curvature`](lane/__init__.py#L223) and the position of the vehicle in respect to the center in function ['__plot_lane_line`](lane/__init__.py#L239)
+The radius of the curvature is calculated in the function [`__measure_curvature`](lane/__init__.py#L233) and the position of the vehicle in respect to the center in function [`__plot_lane_line`](lane/__init__.py#L255)
 
 In both cases, the center of the lane first was calculated.
 For the radius of the curvature I then used the algorithm described in the class "35. Measuring Curvature".
@@ -213,7 +213,7 @@ For the vehicle position I calculated the position where the center of the lane 
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-The last two steps in the process are to unwarp the detected lane lines [`Unwarp`](lane/image/__init__.py#L195) and to plot all the information back onto the undistorted image [`Overlay`](lane/__init__.py#L129). It is used in the function [`full_model()`](sobel.py#L43).
+The last two steps in the process are to unwarp the detected lane lines [`Unwarp`](lane/image/__init__.py#L257) and to plot all the information back onto the undistorted image [`Overlay`](lane/__init__.py#L12). It is used in the function [`full_model()`](sobel.py#L43).
 Here is an example of my result on a test image:
 
 <img src="./output_images/output_full_6_test5.jpg" width="320" height="180"/>
