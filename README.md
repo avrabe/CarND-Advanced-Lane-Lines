@@ -209,18 +209,17 @@ In both cases, the center of the lane first was calculated.
 For the radius of the curvature I then used the algorithm described in the class "35. Measuring Curvature".
 For the vehicle position I calculated the position where the center of the lane is in the image and subtracted this from the actual center of the image (assuming the camera is mounted in the center of the car).
 
+#### Unwarp and Overlay
+
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+The last two steps in the process are to unwarp the detected lane lines [`Unwarp`](lane/image/__init__.py#L195) and to plot all the information back onto the undistorted image [`Overlay`](lane/__init__.py#L129). It is used in the function [`full_model()`](sobel.py#L43).
+Here is an example of my result on a test image:
 
 <img src="./output_images/output_full_6_test5.jpg" width="320" height="180"/>
 ---
 
 ### Pipeline (video)
-
-#### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
-
 
 <a href="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/output_images/output_full_0_project_video.mp4?raw=true">
 <img src="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/output_images/output_full_0_project_video.gif?raw=true" width="320" height="180"/><br>
@@ -231,9 +230,26 @@ Output video
 
 ## Discussion
 
-### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+Figuring out the right threshold pipeline was a quite challenging task. I've tried several settings,
+starting with what has been shown in the class. I ended up taking the base approach shown
+in the Q&A session on advanced lane finding. Noise created by the fact that the camera was
+mounted behind the windshield made it necessary to further adopt the thresholds.
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.
+In addition I'd some issues with the lane line detection. Mapping the lines to polygons can
+result in oversteering the actual detected curve in some areas. It was necessary to further clean
+the binary input image to cope with this.
+
+The current pipeline is only optimized for the test images and the project video. It fails in the
+challenge videos. I'm also quite sure the pipeline will not work when changing the lanes as well
+as in situation where several line markers are drawn (e.g. construction site) and the yellow ones
+have precedence over the white markers.
+
+<img src="http://www.fahrgut.org/images/z9.jpg" width="200" height="200">
+
+Working further on the project I'd would work on three things:
+- Add some further test possibilities (e.g. to have an interactive mode changing parameters)
+- Write my own implementation of lane line detection. To take even further advantage of the previously detected lane lines and to ensure that the polyfit will work correct. Especially to use the convolution approach.
+- Further optimize the threshold.
 
 
 

@@ -13,6 +13,9 @@ from lane.threshold import ColorChannel_Threshold, Absolute_Sobel_Threshold, Mer
 
 
 def binary_threshold(smooth=True):
+    """"
+    :return The Threshold model
+    """
     color_parallel = Parallel(merge=Merge_Threshold(merge="(('v' >= 1) & ('s' >= 1))", binary=True, name="color"),
                               name="color_threshold")
     color_parallel.add(ColorChannel_Threshold(name="v", color_channel=ColorChannel.VALUE, threshold=(150, 255)))
@@ -26,12 +29,18 @@ def binary_threshold(smooth=True):
 
 
 def undistort_model(smooth=True):
+    """"
+    :return The Undistort model
+    """
     model = Sequential()
     model.add(Undistort(calibrate=calibrate_camera('camera_cal/calibration*.jpg'), name="undistort"))
     return model
 
 
 def full_model(smooth=True):
+    """"
+    :return The full pipeline to detect lane lines as model
+    """
     model = undistort_model()
     threshold = Sequential()
     # threshold.add(DeNoise())
@@ -49,6 +58,9 @@ def full_model(smooth=True):
 
 
 def undistort_threshold(smooth=True):
+    """"
+    :return A partial model to process undistortion and thresholding.
+    """
     model = undistort_model()
     model.add(GaussianBlur())
     model.add(binary_threshold())
@@ -56,18 +68,27 @@ def undistort_threshold(smooth=True):
 
 
 def undistort_threshold_warp(smooth=True):
+    """"
+    :return A partial model to process undistortion, thresholding and warping.
+    """
     model = undistort_threshold()
     model.add(Warp(name="warp", height_pct=.64, bot_width=.60, mid_width=.1))
     return model
 
 
 def undistort_threshold_warp_lanelines(smooth=True):
+    """"
+    :return A partial model to process undistortion, thresholding, warping and detection of lane lines.
+    """
     model = undistort_threshold_warp(smooth)
     model.add(LaneLines(name="lane_lines", always_blind_search=False, max_one_eyed_search=10, smooth=smooth,
                         return_binary_warped=True))
     return model
 
 def undistort_threshold_warp_lanelines_unwarp(smooth=True):
+    """"
+    :return A partial model to process undistortion, thresholding, warping, detection of lane lines and unwarping.
+    """
     model = undistort_threshold_warp_lanelines(smooth)
     model.add(Unwarp(name="unwarp", minv="warp"))
     return model
@@ -85,6 +106,11 @@ video_model = None
 
 
 def process_video_image(image):
+    """
+    Helper for the video pipeline.
+    :param image: The unprocessed image from the video.
+    :return: The resulting image
+    """
     img = Image(image=image, color=Color.RGB)
     result = video_model.call(img).image
     return result

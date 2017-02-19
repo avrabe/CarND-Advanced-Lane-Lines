@@ -42,6 +42,9 @@ def calibrate_camera(files):
 
 @attr.s
 class Undistort:
+    """
+    Undistort the given image based on the calibration information provided.
+    """
     calibrate = attr.ib(default=(None, None))
     name = attr.ib(default=haikunator.haikunate())
 

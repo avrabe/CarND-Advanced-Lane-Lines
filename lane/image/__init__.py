@@ -194,6 +194,7 @@ class DeNoise:
 @attr.s
 class Warp:
     """
+    Perform a perspective transformation.
     bot_width: The percent of the bottom trapezoid height
     mid_width: The percent of the middle trapezoid height
     height_pct: The percent for the trapezoid height
@@ -254,6 +255,9 @@ class Warp:
 
 @attr.s
 class Unwarp:
+    """
+    Perform the reverse transformation of the "Warp" Layer.
+    """
     name = attr.ib(default=haikunator.haikunate())
     minv = attr.ib(default="warp")
 
@@ -265,8 +269,13 @@ class Unwarp:
         return Image(image=img, color=image.color, name=self.name, meta=image.meta.copy())
 
 
-def imwrite(foo, output_image):
-    if isinstance(foo, ImageChannel) or foo.color == Color.GRAY:
-        cv2.imwrite(output_image, cv2.cvtColor(foo.image, cv2.COLOR_GRAY2BGR))
+def imwrite(image, output_image):
+    """
+    Write an image or image channel to a file
+    :param image: The Image or ImageChannel
+    :param output_image: The filename to write to.
+    """
+    if isinstance(image, ImageChannel) or image.color == Color.GRAY:
+        cv2.imwrite(output_image, cv2.cvtColor(image.image, cv2.COLOR_GRAY2BGR))
     else:
-        cv2.imwrite(output_image, cv2.cvtColor(foo.image, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(output_image, cv2.cvtColor(image.image, cv2.COLOR_RGB2BGR))

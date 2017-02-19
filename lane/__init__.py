@@ -84,6 +84,11 @@ class LaneLines:
         return ret
 
     def __one_eyed_search(self, binary_warped):
+        """
+        Implementation from the class "34. Sliding Window Search"
+        :param binary_warped: A binary image
+        :return: The images and calculated information
+        """
         # Assume you now have a new warped binary image 
         # from the next frame of video (also called "binary_warped")
         # It's now much easier to find line pixels!
@@ -142,6 +147,11 @@ class LaneLines:
         return self.__plot_lane_line(out_img)
 
     def __blind_search(self, binary_warped):
+        """
+        Implementation from the class "32. Finding the Lanes"
+        :param binary_warped: A binary image
+        :return: The images and calculated information
+        """
         # Assuming you have created a warped binary image called "binary_warped"
         # Take a histogram of the bottom half of the image
         histogram = np.sum(binary_warped[int(binary_warped.shape[0] / 2):, :], axis=0)
@@ -221,6 +231,12 @@ class LaneLines:
         # return self.__one_eyed_search(binary_warped)
 
     def __measure_curvature(self, ploty, center_fitx):
+        """
+        Measure the radius of curvature
+        :param ploty:
+        :param center_fitx:
+        :return: A string with the information
+        """
         y_eval = np.max(ploty)
         center_fit_cr = np.polyfit(ploty * self.ym_per_pix, center_fitx * self.xm_per_pix, 2)
 
@@ -237,6 +253,11 @@ class LaneLines:
         # Example values: 632.1 m    626.2 m
 
     def __plot_lane_line(self, binary_warped):
+        """
+        Draw the actual lane lines and calculate the position of the car on the lane.
+        :param binary_warped:
+        :return: The images and calculated information
+        """
         # Generate x and y values for plotting
         out_img = np.zeros_like(binary_warped)
         ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
