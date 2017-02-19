@@ -78,18 +78,57 @@ As described above in the camera calibration section, the undistortion on images
 |:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
 | <img src="./test_images/test5.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_6_test5.jpg" width="320" height="180"/>|
 
+The application can be used with following command line:
+
 ```bat
 python sobel.py images -i test_images/test5.jpg -o output_images -m undistort
 ```
 
 #### GaussianBlur and Threshold operations.
 
-2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+To create the binary images, the image first was blurred using gaussian blur ([`GaussianBlur`](lane/image/__init__.py#L158) Layer). Afterwards a color threshold ([`ColorChannel_Threshold`](lane/threshold/__init__.py#L12) Layer) and absolute sobel threshold ([`Absolute_Sobel_Threshold`](lane/threshold/__init__.py#L65) Layer) was used. The merge of the layers was done using the [`Merge_Threshold`](lane/threshold/__init__.py#L128) Layer.
+
+The concrete implementation of the configuration is done in the function [`binary_threshold()`](master/sobel.py#L15).
+
+The value and saturation channel have been used as well as the x and y absolute sobel threshold.
+
+Below image example can be implemented with following code.
+
+```python
+from lane.camera import Undistort, calibrate_camera
+from lane.image import FileImage
+files = "camera_cal/*.jpg"
+image = FileImage("test_images/test5.jpg")
+
+def binary_threshold(smooth=True):
+    color_parallel = Parallel(merge=Merge_Threshold(merge="(('v' >= 1) & ('s' >= 1))", binary=True, name="color"),
+                              name="color_threshold")
+    color_parallel.add(ColorChannel_Threshold(name="v", color_channel=ColorChannel.VALUE, threshold=(150, 255)))
+    color_parallel.add(ColorChannel_Threshold(name="s", color_channel=ColorChannel.SATURATION, threshold=(100, 255)))
+    parallel = Parallel(merge=Merge_Threshold(merge="(('gradx' >= 1) & ('grady' >= 1) | ('color' >= 1))", binary=False),
+                        name="thresholds")
+    parallel.add(color_parallel)
+    parallel.add(Absolute_Sobel_Threshold(name="gradx", orient='x', threshold=(50, 255)))
+    parallel.add(Absolute_Sobel_Threshold(name="grady", orient='y', threshold=(25, 255)))
+    return parallel
+
+model = Sequential()
+model.add(Undistort(calibrate=calibrate_camera(files))
+model.add(GaussianBlur())
+model.add(binary_threshold())
+thresholded_image = model.call(image)
+```
 
 | Undistorted                                                      | Thresholded                                                                              |
 |:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
 | <img src="./output_images/output_undistort_6_test5.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_6_test5.jpg" width="320" height="180"/>|
+
+The application can be used with following command line:
+
+```bat
+python sobel.py images -i test_images/test5.jpg -o output_images -m undistort
+```
+
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
 The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
