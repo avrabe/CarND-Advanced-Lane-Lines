@@ -1,0 +1,35 @@
+@startuml
+(*) --> "Undistort"
+"Undistort" --> ===B1===
+--> "No Op"
+--> ===B2===
+
+===B1=== --> "Gaussian Blur"
+--> ===B3===
+--> ===C===
+--> "ColorChannel_Threshold(saturation)"
+--> ===CM==
+--> "Merge_Threshold(c)"
+--> ===SM===
+--> "Merge_Threshold(c, s)"
+--> "Warp"
+--> "Lane Lines"
+--> "Unwarp"
+--> ===B2===
+
+===B3=== --> ===S===
+--> "Absolute_Sobel_Threshold(x)"
+--> ===SM===
+
+===S=== --> "Absolute_Sobel_Threshold(y)"
+--> ===SM===
+
+
+===C=== --> "ColorChannel_Threshold(value)"
+--> ===CM===
+
+===B2=== --> "Overlay"
+--> (*)
+
+"Lane Lines" -->"Overlay"
+@enduml
