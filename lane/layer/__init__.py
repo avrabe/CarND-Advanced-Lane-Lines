@@ -33,7 +33,7 @@ class Sequential:
         return img
 
 
-class myThread(threading.Thread):
+class ParallelThread(threading.Thread):
     def __init__(self, threadLock, queue, layer):
         threading.Thread.__init__(self, daemon=True)
         self.threadLock = threadLock
@@ -64,7 +64,7 @@ class Parallel:
     def add(self, layer):
         self.layers.append(layer)
         queue = Queue()
-        thread = myThread(self.threadLock, queue, layer)
+        thread = ParallelThread(self.threadLock, queue, layer)
         thread.start()
         self.threads.append(thread)
 
