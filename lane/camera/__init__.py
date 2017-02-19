@@ -45,9 +45,18 @@ class Undistort:
     calibrate = attr.ib(default=(None, None))
     name = attr.ib(default=haikunator.haikunate())
 
+    def __attrs_post_init__(self):
+        self.mtx = None
+        self.dist = None
+        self.shape = None
+
     def call(self, image):
         call_objpoints, call_imgpoints = self.calibrate
-        ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(call_objpoints, call_imgpoints,
-                                                           image.image.shape[0:2], None, None)
-        undist = cv2.undistort(image.image, mtx, dist, None, mtx)
+        if not self.shape or not self.shape == image.image.shape[0:2]:
+            ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(call_objpoints, call_imgpoints,
+                                                               image.image.shape[0:2], None, None)
+            self.mtx = mtx
+            self.dist = dist
+            self.shape = image.image.shape[0:2]
+        undist = cv2.undistort(image.image, self.mtx, self.dist, None, self.mtx)
         return Image(image=np.copy(undist), color=image.color, name=self.name, meta=image.meta.copy())
