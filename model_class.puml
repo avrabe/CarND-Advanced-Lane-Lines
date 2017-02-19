@@ -1,0 +1,142 @@
+@startuml
+interface Layer
+Layer : call(image)
+Layer : String name
+
+package lane.layer{
+   class Sequential
+   class Parallel
+   class No_Op
+   Layer <|-- Sequential
+   Layer <|-- Parallel
+   Layer <|-- No_Op
+   Sequential : add(Layer layer)
+   Parallel : add(Layer layer)
+   Parallel : Layer merge
+}
+
+package lane.image{
+    interface MetaImage
+
+    class GaussianBlur
+    class Warp
+    class Unwarp
+    class DeNoise
+    Layer <|-- GaussianBlur
+    Layer <|-- Warp
+    Layer <|-- Unwarp
+    Layer <|-- DeNoise
+
+    class ImageChannel
+    class Image
+    class FileImage
+    Image <|-- FileImage
+
+    enum Color {
+        UNKNOWN
+        GRAY
+        BGR
+        RGB
+        HLS
+        HSV
+    }
+
+    enum ColorChannel {
+        UNKNOWN
+        RED
+        GREEN
+        BLUE
+        GRAY
+        HUE
+        SATURATION
+        LIGHTNESS
+        VALUE
+    }
+
+    GaussianBlur : kernel_size
+
+    DeNoise : kernel_size
+    DeNoise : h
+
+    Warp : bot_width
+    Warp : mid_width
+    Warp : height_pct
+    Warp : bottom_trim
+    Warp : offset
+
+    Unwarp : Warp.name minv
+    Warp <.. Unwarp
+
+    MetaImage : name
+    MetaImage : image
+    MetaImage : meta
+
+    ImageChannel : ColorChannel color_channel
+    MetaImage <|-- ImageChannel
+    ImageChannel .. ColorChannel
+
+    Image : Color color
+    MetaImage <|-- Image
+    Image .. Color
+    Image : get_channel(ColorChannel color_channel)
+
+    FileImage : filename
+}
+package lane {
+   class Lane_Lines
+   class Overlay
+   Layer <|-- Lane_Lines
+   Layer <|-- Overlay
+
+   Overlay : MetaImage.name base
+   Overlay ..> Lane_Lines
+
+   Lane_Lines : plot
+   Lane_Lines : always_blind_search
+   Lane_Lines : max_one_eyed_search
+   Lane_Lines : smooth
+   Lane_Lines : ym_per_pix
+   Lane_Lines : xm_per_pix
+   Lane_Lines : return_binary_warped
+}
+
+package lane.threshold {
+    interface Meta_Threshold
+    class ColorChannel_Threshold
+    class Magnitude_Sobel_Threshold
+    class Absolute_Sobel_Threshold
+    class Merge_Threshold
+    class Direction_Sobel_Threshold
+    Layer <|-- ColorChannel_Threshold
+    Layer <|-- Absolute_Sobel_Threshold
+    Layer <|-- Merge_Threshold
+    Layer <|-- Magnitude_Sobel_Threshold
+    Layer <|-- Direction_Sobel_Threshold
+
+    Meta_Threshold : threshold
+    Meta_Threshold : binary
+    Meta_Threshold : color_channel
+
+    Meta_Threshold <|-- ColorChannel_Threshold
+
+    Magnitude_Sobel_Threshold : sobel_kernel
+    Meta_Threshold <|-- Magnitude_Sobel_Threshold
+
+    Absolute_Sobel_Threshold : orient
+    Absolute_Sobel_Threshold : sobel_kernel
+    Meta_Threshold <|-- Absolute_Sobel_Threshold
+
+    Meta_Threshold <|-- Direction_Sobel_Threshold
+
+    Merge_Threshold : binary
+    Merge_Threshold : merge
+
+}
+
+package lane.camera {
+    class Undistort
+    Layer <|-- Undistort
+
+    Undistort : calibrate
+}
+@enduml
