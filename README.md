@@ -44,7 +44,7 @@ I applied this distortion correction to the test image using the `cv2.undistort(
 
 | Original                                                                                | Undistorted                                                                                |
 |:------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------:|
-|<img src="./output_images/output_undistort_0_calibration1.jpg" width="320" height="180"/>|<img src="./output_images/output_undistort_0_calibration1.jpg" width="320" height="180"/>|
+|<img src="./camera_cal/calibration1.jpg" width="320" height="180"/>|<img src="./output_images/output_undistort_0_calibration1.jpg" width="320" height="180"/>|
 
 
 ```bat
