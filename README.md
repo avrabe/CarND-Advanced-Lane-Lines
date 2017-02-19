@@ -1,10 +1,9 @@
-## **Advanced Lane Finding Project**
+# **Advanced Lane Finding Project**
 [![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
 [![Code Climate](https://codeclimate.com/github/avrabe/CarND-Advanced-Lane-Lines/badges/gpa.svg)](https://codeclimate.com/github/avrabe/CarND-Advanced-Lane-Lines)
 [![Build Status](https://travis-ci.org/avrabe/CarND-Advanced-Lane-Lines.svg?branch=master)](https://travis-ci.org/avrabe/CarND-Advanced-Lane-Lines)
 
-
-### The Project
+## The Project
 The goals / steps of this project are the following:
 
 * Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
@@ -29,31 +28,38 @@ The project uses a similar approach as [Keras](https://keras.io/) to create the 
 
 ### Camera Calibration
 
-#### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
-
-#### Calibrate the camera
-
-The function [calibrate_camera(files)](lane/camera/__init__.py#L13) in the file [lane/camera/__init__.py](lane/camera/__init__.py) is able to calibrate a camera based on the files provided to it.
+#### Create calibration pattern points
 
 I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.
 
+The function [calibrate_camera(files)](lane/camera/__init__.py#L13) implements this.
+
 I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.
 
-The r
-I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result:
+#### Calibrate the camera and undistort images
+
+The calibration pattern points `objpoints` and `imgpoints` are used as input for the [`Undistort`](lane/camera/__init__.py#L44) Layer. If necessary, the layer will call `cv2.calibrateCamera()`to compute the camera calibration and distortion coefficients. Using this information, the undistortion function  `cv2.undistort()` is called and the undistorted image returned.
+
+Below image example can be implemented with below code.
+
+```python
+from lane.camera import Undistort, calibrate_camera
+from lane.image import FileImage
+files = "camera_cal/*.jpg"
+image = FileImage("camera_cal/calibration1.jpg")
+model = Undistort(calibrate=calibrate_camera(files)
+undistorted_image = model.call(image)
+```
+
 
 | Original                                                                                | Undistorted                                                                                |
 |:------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------:|
 |<img src="./camera_cal/calibration1.jpg" width="320" height="180"/>|<img src="./output_images/output_undistort_0_calibration1.jpg" width="320" height="180"/>|
 
+The application also can be used with following command line:
 
 ```bat
 python sobel.py images -i camera_cal\calibration1.jpg -o output_images -m undistort
-```
-
-
-```python
-Undistort(calibrate=calibrate_camera(files)
 ```
 
 
@@ -137,9 +143,9 @@ Output video
 
 ---
 
-### Discussion
+## Discussion
 
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
 Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.
 
