@@ -131,9 +131,9 @@ python sobel.py images -i test_images/test5.jpg -o output_images -m undistort_th
 
 #### Warp
 
-The perspective transformation is implemented in the [`Warp`](lane/image/__init__.py#L195) Layer). It is used in the function [`full_model()`](sobel.py#L41).
+The perspective transformation is implemented in the [`Warp`](lane/image/__init__.py#L195) Layer. It is used in the function [`full_model()`](sobel.py#L41).
 
-The Warp Layer can be configured using the with of the top and the bottom as well as the height of the trapezoid and how much of the bottom should be trimmed (to remove parts of the car). In addition an offset can be added to the destination.
+The Warp Layer can be configured using the width of the top and the bottom as well as the height of the trapezoid and how much of the bottom should be trimmed (to remove parts of the car). In addition an offset can be added to the destination.
 
 The source and destination points are defined therefore as:
 
@@ -151,7 +151,7 @@ dst = np.array([[call_offset, 0],
                dtype=np.float32)
 ```
 
-When the Warp layer is called, the inverse operation is stored as meta information in the returned image. A [`Unwarp`](lane/image/__init__.py#L256) Layer) could then reuse this inverse operation to transform the image back into it's original perspective.
+When the Warp layer is called, the inverse operation is stored as meta information in the returned image. The [`Unwarp`](lane/image/__init__.py#L256) Layer can be used to transform the image back into it's original perspective.
 
 The following two lines added to the example in "GaussianBlur and Threshold" will warp the image.
 
@@ -173,25 +173,44 @@ The application can be used with following command line:
 python sobel.py images -i test_images/straight_lines1.jpg -o output_images -m undistort_threshold_warp
 ```
 
-#### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
+#### Lane Lines
+##### Detect the lane line
+The lane-line pixels are detected in the [`LaneLines`](lane/__init__.py#L56) Layer. It is used in the function [`full_model()`](sobel.py#L42).
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+The algorithm presented in the class room "33. Finding Lane Lines" and "34. Sliding Window Search"
+was used. In addition it is possible to define:
+- the expensive algorithm from "Finding Lane Lines" should always be used.
+- the expensive algorithm from "Finding Lane Lines" should be used after `max_one_eyed_search` times using the "Sliding Window Search"
+- the results shall be smoothed with the previous found ones.
 
+An example of the output of the "Finding Lane Lines" with the resulting found left and right lane as well as the windows:
 
-| Warped                                                      | Lane Lines (blind search)                                                                            |
+| Warped                                                      | Lane Lines (Finding Lane Lines)                                                                            |
 |:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
 | <img src="./output_images/output_undistort_threshold_warp_0_straight_lines1.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_warp_lanelines_0_straight_lines1.jpg" width="320" height="180"/>|
 
-| Warped                                                      | Lane Lines (one eyed search)                                                                              |
+When using the "Sliding Window Search" the area the new lane is searched is marked in green and the found left and right lane are shown.
+
+| Warped                                                      | Lane Lines (Sliding Window Search)                                                                              |
 |:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
 | <img src="./output_images/output_undistort_threshold_warp_6_test5.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_warp_lanelines_6_test5.jpg" width="320" height="180"/>|
 
+The application can be used with following command line:
 
-#### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
+```bat
+python sobel.py images -i test_images/*.jpg -o output_images -m undistort_threshold_warp_lanelines
+```
 
-I did this in lines # through # in my code in `my_other_file.py`
+##### Detect the lane line
+
+The radius of the curvature is calculated in the function [`__measure_curvature`](lane/__init__.py#L223) and the position of the vehicle in respect to the center in function ['__plot_lane_line`](lane/__init__.py#L239)
+
+In both cases, the center of the lane first was calculated.
+For the radius of the curvature I then used the algorithm described in the class "35. Measuring Curvature".
+For the vehicle position I calculated the position where the center of the lane is in the image and subtracted this from the actual center of the image (assuming the camera is mounted in the center of the car).
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
+
 
 I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
 
