@@ -84,11 +84,11 @@ The application can be used with following command line:
 python sobel.py images -i test_images/test5.jpg -o output_images -m undistort
 ```
 
-#### GaussianBlur and Threshold operations.
+#### GaussianBlur and Threshold
 
 To create the binary images, the image first was blurred using gaussian blur ([`GaussianBlur`](lane/image/__init__.py#L158) Layer). Afterwards a color threshold ([`ColorChannel_Threshold`](lane/threshold/__init__.py#L12) Layer) and absolute sobel threshold ([`Absolute_Sobel_Threshold`](lane/threshold/__init__.py#L65) Layer) was used. The merge of the layers was done using the [`Merge_Threshold`](lane/threshold/__init__.py#L128) Layer.
 
-The concrete implementation of the configuration is done in the function [`binary_threshold()`](master/sobel.py#L15).
+The concrete implementation of the configuration is done in the function [`binary_threshold()`](sobel.py#L15).
 
 The value and saturation channel have been used as well as the x and y absolute sobel threshold.
 
@@ -126,40 +126,52 @@ thresholded_image = model.call(image)
 The application can be used with following command line:
 
 ```bat
-python sobel.py images -i test_images/test5.jpg -o output_images -m undistort
+python sobel.py images -i test_images/test5.jpg -o output_images -m undistort_threshold
 ```
 
-#### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
+#### Warp
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+The perspective transformation is implemented in the [`Warp`](lane/image/__init__.py#L195) Layer). It is used in the function [`full_model()`](sobel.py#L41).
 
-```
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
+The Warp Layer can be configured using the with of the top and the bottom as well as the height of the trapezoid and how much of the bottom should be trimmed (to remove parts of the car). In addition an offset can be added to the destination.
+
+The source and destination points are defined therefore as:
 
 ```
-This resulted in the following source and destination points:
+call_offset = w * self.offset
+src = np.array([[w * (.5 - self.mid_width / 2), h * self.height_pct],
+                [w * (.5 + self.mid_width / 2), h * self.height_pct],
+                [w * (.5 + self.bot_width / 2), h * self.bottom_trim],
+                [w * (.5 - self.bot_width / 2), h * self.bottom_trim]],
+               dtype=np.float32
+dst = np.array([[call_offset, 0],
+                [w - call_offset, 0],
+                [w - call_offset, h],
+                [call_offset, h]],
+               dtype=np.float32)
+```
 
-| Source        | Destination   |
-|:-------------:|:-------------:|
-| 585, 460      | 320, 0        |
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+When the Warp layer is called, the inverse operation is stored as meta information in the returned image. A [`Unwarp`](lane/image/__init__.py#L256) Layer) could then reuse this inverse operation to transform the image back into it's original perspective.
+
+The following two lines added to the example in "GaussianBlur and Threshold" will warp the image.
+
+```python
+...
+model.add(Warp())
+warped_image = model.call(image)
+```
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
 | Thresholded                                                      | Warped                                                                              |
 |:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
-| <img src="./output_images/output_undistort_threshold_6_test5.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_warp_6_test5.jpg" width="320" height="180"/>|
+| <img src="./output_images/output_undistort_threshold_0_straight_lines1.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_warp_0_straight_lines1.jpg" width="320" height="180"/>|
+
+The application can be used with following command line:
+
+```bat
+python sobel.py images -i test_images/straight_lines1.jpg -o output_images -m undistort_threshold_warp
+```
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
