@@ -34,13 +34,11 @@ I start by preparing "object points", which will be the (x, y, z) coordinates of
 
 The function [calibrate_camera(files)](lane/camera/__init__.py#L13) implements this.
 
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.
-
 #### Calibrate the camera and undistort images
 
 The calibration pattern points `objpoints` and `imgpoints` are used as input for the [`Undistort`](lane/camera/__init__.py#L44) Layer. If necessary, the layer will call `cv2.calibrateCamera()`to compute the camera calibration and distortion coefficients. Using this information, the undistortion function  `cv2.undistort()` is called and the undistorted image returned.
 
-Below image example can be implemented with below code.
+Below image example can be implemented with following code.
 
 ```python
 from lane.camera import Undistort, calibrate_camera
@@ -65,10 +63,16 @@ python sobel.py images -i camera_cal\calibration1.jpg -o output_images -m undist
 
 ### Pipeline (single images)
 
-<img src="model.png" />
+The full image pipeline model can be seen below.
 
-#### 1. Provide an example of a distortion-corrected image.
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
+<a href="model.png">
+<img src="model.png" width="350" height="500"/>
+</a>
+
+In the following the important steps within the pipeline will be outlined in detail.
+
+#### Undistort
+As described above in the camera calibration section, the undistortion on images is the first step in the pipeline. The same code as above can be used. Next an example using the test images can be seen.
 
 | Original                                                      | Undistorted                                                                              |
 |:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
@@ -78,11 +82,14 @@ To demonstrate this step, I will describe how I apply the distortion correction 
 python sobel.py images -i test_images/test5.jpg -o output_images -m undistort
 ```
 
-#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
+#### GaussianBlur and Threshold operations.
+
+2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
 
-![alt text][image3]
-
+| Undistorted                                                      | Thresholded                                                                              |
+|:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
+| <img src="./output_images/output_undistort_6_test5.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_6_test5.jpg" width="320" height="180"/>|
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
 The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
@@ -111,31 +118,40 @@ This resulted in the following source and destination points:
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
-![alt text][image4]
+| Thresholded                                                      | Warped                                                                              |
+|:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
+| <img src="./output_images/output_undistort_threshold_6_test5.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_warp_6_test5.jpg" width="320" height="180"/>|
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
 Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
 
-![alt text][image5]
 
-####5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
+| Warped                                                      | Lane Lines (blind search)                                                                            |
+|:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
+| <img src="./output_images/output_undistort_threshold_warp_0_straight_lines1.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_warp_lanelines_0_straight_lines1.jpg" width="320" height="180"/>|
+
+| Warped                                                      | Lane Lines (one eyed search)                                                                              |
+|:-------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
+| <img src="./output_images/output_undistort_threshold_warp_6_test5.jpg" width="320" height="180"/> | <img src="./output_images/output_undistort_threshold_warp_lanelines_6_test5.jpg" width="320" height="180"/>|
+
+
+#### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
 I did this in lines # through # in my code in `my_other_file.py`
 
-####6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
+#### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
 I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
 
-![alt text][image6]
-
+<img src="./output_images/output_full_6_test5.jpg" width="320" height="180"/>
 ---
 
 ### Pipeline (video)
 
-####1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
+#### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./project_video.mp4)
+
 <a href="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/output_images/output_full_0_project_video.mp4?raw=true">
 <img src="https://github.com/avrabe/CarND-Advanced-Lane-Lines/blob/master/output_images/output_full_0_project_video.gif?raw=true" width="320" height="180"/><br>
 Output video
