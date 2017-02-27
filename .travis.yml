@@ -10,7 +10,7 @@ before_install:
   - curl -o /tmp/vehicles.zip https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip
   - curl -o /tmp/vehicles.zip https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip
   - unzip -qq /tmp/vehicles.zip -d /tmp
-  - unzip -qq /tmp/non.zip -d /tmp
+  - unzip -qq /tmp/non-vehicles.zip -d /tmp
 install:
   - pip install -r requirements.txt
 script:

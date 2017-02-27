@@ -3,8 +3,8 @@ from enum import Enum
 import attr
 import cv2
 import numpy as np
-
 from haikunator import Haikunator
+
 haikunator = Haikunator()
 
 
@@ -15,6 +15,9 @@ class Color(Enum):
     RGB = 3
     HLS = 4
     HSV = 5
+    LUV = 6  # TODO colorchannel conversion
+    YUV = 7  # TODO colorchannel conversion
+    YCrCb = 8  # TODO colochannel conversion
 
 
 class ColorChannel(Enum):
@@ -49,6 +52,45 @@ class Image:
     image = attr.ib(default=None)
     name = attr.ib(default=haikunator.haikunate())
     meta = attr.ib(default={})
+
+    def get_image(self, color):
+        if self.color == color:
+            return self
+        _conv = {}
+        if self.color == Color.GRAY:
+            _conv = {
+                Color.RGB: cv2.COLOR_GRAY2RGB,
+                Color.BGR: cv2.COLOR_GRAY2BGR,
+                Color.HLS: cv2.COLOR_GRAY2HLS,
+                Color.HSV: cv2.COLOR_GRAY2HSV,
+                Color.LUV: cv2.COLOR_GRAY2LUV,
+                Color.YUV: cv2.COLOR_GRAY2YUV,
+                Color.YCrCb: cv2.COLOR_GRAY2YCrCb
+            }
+        elif self.color == Color.RGB:
+            _conv = {
+                Color.GRAY: cv2.COLOR_RGB2GRAY,
+                Color.BGR: cv2.COLOR_RGB2BGR,
+                Color.HLS: cv2.COLOR_RGB2HLS,
+                Color.HSV: cv2.COLOR_RGB2HSV,
+                Color.LUV: cv2.COLOR_RGB2LUV,
+                Color.YUV: cv2.COLOR_RGB2YUV,
+                Color.YCrCb: cv2.COLOR_RGB2YCrCb
+            }
+        elif self.color == Color.BGR:
+            _conv = {
+                Color.GRAY: cv2.COLOR_BGR2GRAY,
+                Color.RGB: cv2.COLOR_BGR2RGB,
+                Color.HLS: cv2.COLOR_BGR2HLS,
+                Color.HSV: cv2.COLOR_BGR2HSV,
+                Color.LUV: cv2.COLOR_BGR2LUV,
+                Color.YUV: cv2.COLOR_BGR2YUV,
+                Color.YCrCb: cv2.COLOR_BGR2YCrCb
+            }
+        if _conv:
+            img = cv2.cvtColor(np.copy(self.image), _conv[color])
+            return Image(color=color, image=img, name=self.name, meta=self.meta.copy())
+        assert 1 == 0
 
     def get_channel(self, channel_color):
         """
