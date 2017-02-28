@@ -8,7 +8,7 @@ before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq unzip curl
   - curl -o /tmp/vehicles.zip https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip
-  - curl -o /tmp/vehicles.zip https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip
+  - curl -o /tmp/non-vehicles.zip https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip
   - unzip -qq /tmp/vehicles.zip -d /tmp
   - unzip -qq /tmp/non-vehicles.zip -d /tmp
 install:
