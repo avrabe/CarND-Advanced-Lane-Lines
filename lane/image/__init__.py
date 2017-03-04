@@ -172,6 +172,30 @@ class Image:
         print(self.color, channel_color)
         assert 1 == 0
 
+    def crop(self, startx=0, starty=0, endx=0, endy=0):
+        """
+        Flip the image
+        """
+        img = np.copy(self.image)
+        img = img[starty: endy, startx: endx]
+        return Image(color=self.color, image=img, name=self.name, meta=self.meta.copy())
+
+    def scale(self, dsize=(64, 64)):
+        """
+        Flip the image
+        """
+        img = np.copy(self.image)
+        img = cv2.resize(img, dsize)
+        return Image(color=self.color, image=img, name=self.name, meta=self.meta.copy())
+
+    def flip(self):
+        """
+        Flip the image
+        """
+        img = cv2.flip(np.copy(self.image), 1)
+
+        return Image(color=self.color, image=img, name=self.name, meta=self.meta.copy())
+
 
 @attr.s
 class FileImage(Image):
