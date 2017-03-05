@@ -51,13 +51,9 @@ cell_per_blocks = (2, 2)
 
 I've tested through all options of the colorspace and hog_channel and tried an orientation from 8 to 12 and pix_per_cell from (6, 6) to (10, 10) and cell_per_blocks from (1, 1) to (3, 3) and the above final parameters turned out to create the best accuracy for the SVM classifier (**Test Accuracy of SVC = 0.993000**).
 
-####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
-
 The linear SVM is trained in function [create_model](vehicle.py#L279) in line [317](vehicle.py#L317). It used as feature vector the combination of hog features, bin spatial features and color histogram features which had been [scaled](vehicle.py#L303) before. In addition the data was split into a training and test set.
 
 ###Sliding Window Search
-
-####1. Describe how (and identify where in your code) you implemented a sliding window search.  How did you decide what scales to search and how much to overlap windows?
 
 I mainly used the sliding window example provided in the class. In addition I limited the search range (see below picture)
 
@@ -65,18 +61,17 @@ I mainly used the sliding window example provided in the class. In addition I li
 |:-------------:|
 |<img src="doc/vehicle/search_windows.png" width="320" height="180"/>|
 
-####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
-
-I additional added 4 different sizes of the sliding window and further played with the parameters (the overlap between each window is 20% in x and y).
+I additional added 4 different sizes of the sliding window and further played with the parameters (the overlap between each window is 20% in x and y). Limiting the search scope was done by looking at the picture itself (don't track the sky). The overlap was tested.
 
 Ultimately I searched on two scales using YCrCb 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result.  Here are some example images:
 
-| Original                                                            | Vehicle tracking                                                                   |
-|:-------------------------------------------------------------------------:|
-:--------------------:|
-|<img src="test_images/test5.jpg" width="320" height="180"/>          |<img src="output_images/output_6_test5.jpg" width="320" height="180"/>    |
-|<img src="test_images/test6.jpg" width="320" height="180"/>|<img src="output_images/output_7_test6.jpg" width="320" height="180"/>    |
-|<img src="test_images/straight_lines2.jpg" width="320" height="180"/>|<img src="output_images/output_1_straight_lines2.jpg" width="320" height="180"/>|
+
+<img src="output_images/output_6_test5.jpg" width="320" height="180"/>
+<br>
+
+<img src="output_images/output_7_test6.jpg" width="320" height="180"/>
+<br>
+<img src="output_images/output_1_straight_lines2.jpg" width="320" height="180"/>
 ---
 
 ### Video Implementation
@@ -98,5 +93,14 @@ The video already shows the final resulting bounding box. Inside there is in add
 ###Discussion
 
 ####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+
+If I'd have to work further on the project I'd:
+- Improve the detection rate of the SVC classifier. Even with 99.3% accuracy that means that in every frame there is the possibility that wrong predictions are made. I'd would extend the amount of vehicle and not vehicle in the first place.
+- First to enhance the lane finding algorithm to detect all lanes and to use this input to further limit the sliding window.
+- Try to reduce the wobbling of the cars.
+- Try to enhance the detection of two cars (if the drive close by). Currently it only detects one.
+- Further work to detect cars far up (The white car is for some time not detected)
+
+The pipeline might already fail when trucks and motorcycles are on the road too as I've not trained them.
 
 Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.
