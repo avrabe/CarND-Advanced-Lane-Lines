@@ -20,24 +20,35 @@ The goals / steps of this project are the following:
 
 ### Histogram of Oriented Gradients (HOG)
 
-#### 1. Explain how (and identify where in your code) you extracted HOG features from the training images.
+#### Extract HOG features from the training images
 
-[calibrate_camera(files)](lane/camera/__init__.py#L13) 
+I started in function [model](vehicle.py#L356) which calls the function [create_model](vehicle.py#L279). There the vehicle and not-vehicle files are put together. These are handed over to [extract_features](vehicle.py#L107) which extracts from every image and flipped image the features via the function [features_features_features](vehicle.py#L148). Finally this calls the function [get_hog_features](vehicle.py#L28) which extracts the hog features using the function [skimage.hog](http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.hog)
 
-The code for this step is contained in the first code cell of the IPython notebook (or in lines # through # of the file called `some_file.py`).
+An example for the vehicle and not vehicle is:
 
-I started by reading in all the `vehicle` and `non-vehicle` images.  Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
-
-![alt text][image1]
+| Vehicle       | Not vehicle          |
+|:-------------:|:--------------------:|
+|<img src="doc/vehicle/image0078.png" width="320" height="320"/>|<img src="doc/vehicle/extra1.png" width="320" height="320"/>|
 
 I then explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`).  I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
 
 Here is an example using the `YCrCb` color space and HOG parameters of `orientations=8`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
 
 
-![alt text][image2]
+| HOG           |
+|:-------------:|
+|<img src="doc/vehicle/hog_image.png" width="320" height="320"/>|
 
-####2. Explain how you settled on your final choice of HOG parameters.
+#### Final HOG parameters
+
+```python
+    colorspace = Color.YCrCb
+    hog_channel = "ALL"
+    orientation = 10
+    pix_per_cell = (8, 8)
+    cell_per_blocks = (2, 2)
+```
+2. Explain how you settled on your final choice of HOG parameters.
 
 I tried various combinations of parameters and...
 

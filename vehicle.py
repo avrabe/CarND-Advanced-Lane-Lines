@@ -276,10 +276,10 @@ def predict_vehicle(model='model.pkl', image=None,
     return r
 
 
-def method_name(colorspace=Color.YCrCb, hog_channel="ALL",
-                cars='train/vehicles/*/*.png', notcars='train/non-vehicles/*/*.png',
-                output='model.pkl',
-                orient=None, pix_per_cell=None, cell_per_block=None):
+def create_model(colorspace=Color.YCrCb, hog_channel="ALL",
+                 cars='train/vehicles/*/*.png', notcars='train/non-vehicles/*/*.png',
+                 output='model.pkl',
+                 orient=None, pix_per_cell=None, cell_per_block=None):
     # Divide up into cars and notcars
     cars = glob.glob(cars)
     notcars = glob.glob(notcars)
@@ -363,8 +363,8 @@ def model(output, cars, notcars):
                                                                                  pix_per_cells, cell_per_blocks):
         print("--- Run with %s %s %d %d %d ---" % (
             colorspace.name, str(hog_channel), orient, pix_per_cell, cell_per_block))
-        method_name(output=output, cars=cars, notcars=notcars, colorspace=colorspace, hog_channel=hog_channel,
-                    orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block)
+        create_model(output=output, cars=cars, notcars=notcars, colorspace=colorspace, hog_channel=hog_channel,
+                     orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block)
     sys.exit()
 
 
@@ -454,15 +454,15 @@ def predict_image(colorspace, hog_channel, img, use_previous_heatmap=False, lane
     # Add heat to each box in box list
     if use_previous_heatmap:
         if len(previous_predicted_vehicles) == 5:
-            heat = add_heat(heat, previous_predicted_vehicles[0], factor=0.1)
-            heat = add_heat(heat, previous_predicted_vehicles[1], factor=0.3)
-            heat = add_heat(heat, previous_predicted_vehicles[2], factor=0.5)
-            heat = add_heat(heat, previous_predicted_vehicles[3], factor=0.7)
-            heat = add_heat(heat, previous_predicted_vehicles[4], factor=0.9)
+            heat = add_heat(heat, previous_predicted_vehicles[0], factor=0.05)
+            heat = add_heat(heat, previous_predicted_vehicles[1], factor=0.1)
+            heat = add_heat(heat, previous_predicted_vehicles[2], factor=0.3)
+            heat = add_heat(heat, previous_predicted_vehicles[3], factor=0.5)
+            heat = add_heat(heat, previous_predicted_vehicles[4], factor=0.7)
         previous_predicted_vehicles.append(w)
     heat = add_heat(heat, w, factor=1)
     # Apply threshold to help remove false positives
-    heat = apply_threshold(heat, 9)
+    heat = apply_threshold(heat, 8)
     # Visualize the heatmap when displaying
     labels = label(heat)
     heatmap = np.clip(heat, 0, 255).astype(np.uint8)
@@ -476,7 +476,6 @@ def predict_image(colorspace, hog_channel, img, use_previous_heatmap=False, lane
     # heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_HOT)
     heatmap = cv2.cvtColor(heatmap, cv2.COLOR_GRAY2RGB)
 
-    foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
     foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
     foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
     foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
