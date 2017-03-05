@@ -1,16 +1,19 @@
 """
 Based on sample code form Udactiy SDND class: Vehicle Detection and Tracking - HOG Classify
 """
+import collections
 import glob
 import os
 import sys
+import threading
 import time
 from itertools import product
-from moviepy.video.io.VideoFileClip import VideoFileClip
+from queue import Queue
 
 import click
 import cv2
 import numpy as np
+from moviepy.video.io.VideoFileClip import VideoFileClip
 from scipy.ndimage.measurements import label
 from skimage.feature import hog
 from sklearn.externals import joblib
@@ -19,10 +22,21 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
 from lane.image import FileImage, Color, Image
+from sobel import models
 
 
 def get_hog_features(img, orient, pix_per_cell, cell_per_block,
                      vis=False, feature_vec=True):
+    """
+    Exract the hog feature out of the image
+    :param img: The inout image
+    :param orient: The number of orientations of the hog
+    :param pix_per_cell: The amount of pix for a cell
+    :param cell_per_block: The amount of cells per block
+    :param vis: Shall a visual image be returned?
+    :param feature_vec: Shall the feature vector be calculated
+    :return: The feature vector and the output image (if vis is set to True)
+    """
     # Call with two outputs if vis==True
     if vis:
         features, hog_image = hog(img, orientations=orient, pixels_per_cell=(pix_per_cell, pix_per_cell),
@@ -34,11 +48,24 @@ def get_hog_features(img, orient, pix_per_cell, cell_per_block,
         features = hog(img, orientations=orient, pixels_per_cell=(pix_per_cell, pix_per_cell),
                        cells_per_block=(cell_per_block, cell_per_block), transform_sqrt=True,
                        visualise=vis, feature_vector=feature_vec)
+        ##features, hog_image = hog(img, orientations=orient, pixels_per_cell=(pix_per_cell, pix_per_cell),
+        ##                          cells_per_block=(cell_per_block, cell_per_block), transform_sqrt=True,
+        ##                          visualise=True, feature_vector=feature_vec)
+        ##print(hog_image.shape, np.max(hog_image))
+        ##hog_image *=255
+        ##hog_image = cv2.cvtColor(hog_image.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        ##cv2.imwrite("hog_image.png", hog_image)
         return features
 
 
 # Define a function to compute binned color features
 def bin_spatial(img, size=(32, 32)):
+    """
+    Create features based on the color features of an image
+    :param img: The input image
+    :param size: The size of the returned feature (It's a resized image)
+    :return: The feature vector
+    """
     # Use cv2.resize().ravel() to create the feature vector
     features = cv2.resize(img, size).ravel()
     # Return the feature vector
@@ -47,6 +74,12 @@ def bin_spatial(img, size=(32, 32)):
 
 # Define a function to compute color histogram features
 def color_hist(img, nbins=32):
+    """
+    Calculate the features based on the color histogram
+    :param img: The input image
+    :param nbins: The number of bins to put the histogram into
+    :return: The calculated feature vector
+    """
     # Compute the histogram of the color channels separately
     channel1_hist = np.histogram(img[:, :, 0], bins=nbins)
     channel2_hist = np.histogram(img[:, :, 1], bins=nbins)
@@ -58,6 +91,11 @@ def color_hist(img, nbins=32):
 
 
 def files_iter(imgs):
+    """
+    An iterator returning Images and flipped images
+    :param imgs: A list containing filenames as list
+    :return: The image and flipped image
+    """
     for _file in imgs:
         image = FileImage(filename=_file)
         yield image
@@ -66,7 +104,8 @@ def files_iter(imgs):
 
 # Define a function to extract features from a list of images
 # Have this function call bin_spatial() and color_hist()
-def extract_features(imgs, cspace=Color.RGB, hog_channel=0):
+def extract_features(imgs, cspace=Color.RGB, hog_channel=0,
+                     orient=None, pix_per_cell=None, cell_per_block=None):
     # Create a list to append feature vectors to
     features = []
     # Iterate through the list of images
@@ -76,23 +115,53 @@ def extract_features(imgs, cspace=Color.RGB, hog_channel=0):
         # apply color conversion if other than 'RGB'
 
         # Call get_hog_features() with vis=False, feature_vec=True
-        f = features_features_features(image, cspace=cspace, hog_channel=hog_channel)
+        f = features_features_features(image, cspace=cspace, hog_channel=hog_channel,
+                                       orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block)
         features.append(f)
     # Return list of feature vectors
     return features
 
 
-def features_features_features(image=None, cspace=Color.RGB, orient=9,
-                               pix_per_cell=8, cell_per_block=2, hog_channel=0,
+class HogThread(threading.Thread):
+    def __init__(self, queue):
+        threading.Thread.__init__(self, daemon=True)
+        self.queue = queue
+        self.features = None
+
+    def run(self):
+        while True:
+            (feature_image, channel, orient, pix_per_cell, cell_per_block) = self.queue.get()
+            self.features = get_hog_features(feature_image[:, :, channel],
+                                             orient, pix_per_cell, cell_per_block,
+                                             vis=False, feature_vec=True)
+            self.queue.task_done()
+
+
+threads = []
+for i in [0, 1, 2]:
+    queue = Queue()
+    thread = HogThread(queue)
+    thread.start()
+    threads.append(thread)
+
+
+def features_features_features(image=None, cspace=Color.YCrCb, orient=10,
+                               pix_per_cell=8, cell_per_block=2, hog_channel="ALL",
                                spatial_size=(16, 16),
                                hist_bins=16):
     feature_image = image.get_image(color=cspace).image
     my_range = range(feature_image.shape[2]) if hog_channel == 'ALL' else range(hog_channel, hog_channel + 1)
     hog_features = []
+
     for channel in my_range:
+        # threads[channel].queue.put((feature_image, channel, orient, pix_per_cell, cell_per_block))
+
         hog_features.append(get_hog_features(feature_image[:, :, channel],
                                              orient, pix_per_cell, cell_per_block,
                                              vis=False, feature_vec=True))
+    # for t in threads:
+    #    t.queue.join()
+    #    hog_features.append(t.features)
     hog_features = np.ravel(hog_features) if len(hog_features) > 1 else hog_features[0]
     f = hog_features
     # Append the new feature vector to the features list
@@ -158,49 +227,59 @@ def predict_vehicle(model='model.pkl', image=None,
     X_scaler = joblib.load("scaler.pkl")
     r = []
 
-    for window in range(64, 160, 32):
-        print("##### window %d" % window)
+    bin_features = []
+    wl = []
+    t = time.time()
+    ## counter=6
+    ## boo=image.get_image(Color.BGR).image
+    for window in range(64, 144, 24):
+        # print("##### window %d" % window)
         # Reduce the sample size because HOG features are slow to compute
         # The quiz evaluator times out after 13s of CPU time
-        bin_features = []
-        window_list = slide_window(image.image, xy_window=(window, window), xy_overlap=(0.5, 0.5),
+
+        window_list = slide_window(image.image, xy_window=(window, window), xy_overlap=(0.2, 0.2),
                                    y_start_stop=[400, 656])
         for ((startx, starty), (endx, endy)) in window_list:
             i = image.crop(startx=startx, starty=starty,
                            endx=endx, endy=endy).scale((64, 64))
             bf = features_features_features(i, cspace=colorspace, hog_channel=hog_channel)
             bin_features.append(bf)
-        t = time.time()
         t2 = time.time()
         print(round(t2 - t, 2), 'Seconds to extract HOG features...')
         if not bin_features:
             continue
-        # Create an array stack of feature vectors
-        X = np.vstack((bin_features)).astype(np.float64)
-        # Fit a per-column scaler
-        #X_scaler = StandardScaler().fit(X)
-        # Apply the scaler to X
-        scaled_X = X_scaler.transform(X)
-        # Define the labels vector
-        # Split up data into randomized training and test sets
+        wl.extend(window_list)
+        ## boo = draw_boxes(boo, window_list, thick=counter, color=(0,0,window*2))
+        ## counter -= 2
+    ## cv2.imwrite("search_windows.png", boo)
 
-        # Check the prediction time for a single sample
-        t = time.time()
-        n_predict = len(bin_features)
-        p = svc.predict(scaled_X)
-        print('My SVC predicts: ', np.count_nonzero(p))
-        t2 = time.time()
-        print(round(t2 - t, 5), 'Seconds to predict', n_predict, 'labels with SVC')
-        for i in range(len(p)):
-            if p[i] > 0:
-                r.append(window_list[i])
+    t = time.time()
+    # Create an array stack of feature vectors
+    X = np.vstack((bin_features)).astype(np.float64)
+    # Fit a per-column scaler
+    # X_scaler = StandardScaler().fit(X)
+    # Apply the scaler to X
+    scaled_X = X_scaler.transform(X)
+    # Define the labels vector
+    # Split up data into randomized training and test sets
+
+    # Check the prediction time for a single sample
+    n_predict = len(bin_features)
+    p = svc.predict(scaled_X)
+    print('My SVC predicts: ', np.count_nonzero(p))
+    t2 = time.time()
+    print(round(t2 - t, 5), 'Seconds to predict', n_predict, 'labels with SVC')
+    for i in range(len(p)):
+        if p[i] > 0:
+            r.append(wl[i])
 
     return r
 
 
 def method_name(colorspace=Color.YCrCb, hog_channel="ALL",
                 cars='train/vehicles/*/*.png', notcars='train/non-vehicles/*/*.png',
-                output='model.pkl'):
+                output='model.pkl',
+                orient=None, pix_per_cell=None, cell_per_block=None):
     # Divide up into cars and notcars
     cars = glob.glob(cars)
     notcars = glob.glob(notcars)
@@ -212,8 +291,10 @@ def method_name(colorspace=Color.YCrCb, hog_channel="ALL",
     notcars = notcars[0:sample_size]
 
     t = time.time()
-    car_features = extract_features(cars, cspace=colorspace, hog_channel=hog_channel)
-    notcar_features = extract_features(notcars, cspace=colorspace, hog_channel=hog_channel)
+    car_features = extract_features(cars, cspace=colorspace, hog_channel=hog_channel,
+                                    orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block)
+    notcar_features = extract_features(notcars, cspace=colorspace, hog_channel=hog_channel,
+                                       orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block)
     t2 = time.time()
     print(round(t2 - t, 2), 'Seconds to extract HOG features...')
     # Create an array stack of feature vectors
@@ -275,18 +356,24 @@ def cli():
 def model(output, cars, notcars):
     colorspaces = [Color.YCrCb]
     hog_channels = ["ALL"]
-    for colorspace, hog_channel in product(colorspaces, hog_channels):
-        print("--- Run with %s %s ---" % (colorspace.name, str(hog_channel)))
-        method_name(output=output, cars=cars, notcars=notcars, colorspace=colorspace, hog_channel=hog_channel)
+    orients = [10]  # range(8, 12)
+    pix_per_cells = [8]  # range(6, 10)
+    cell_per_blocks = [2]  # range(1, 4)
+    for colorspace, hog_channel, orient, pix_per_cell, cell_per_block in product(colorspaces, hog_channels, orients,
+                                                                                 pix_per_cells, cell_per_blocks):
+        print("--- Run with %s %s %d %d %d ---" % (
+            colorspace.name, str(hog_channel), orient, pix_per_cell, cell_per_block))
+        method_name(output=output, cars=cars, notcars=notcars, colorspace=colorspace, hog_channel=hog_channel,
+                    orient=orient, pix_per_cell=pix_per_cell, cell_per_block=cell_per_block)
     sys.exit()
 
 
-def add_heat(heatmap, bbox_list):
+def add_heat(heatmap, bbox_list, factor=1):
     # Iterate through list of bboxes
     for box in bbox_list:
         # Add += 1 for all pixels inside each bbox
         # Assuming each "box" takes the form ((x1, y1), (x2, y2))
-        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 5
+        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += int(5 * factor)
 
     # Return updated heatmap
     return heatmap  # Iterate through list of bboxes
@@ -310,9 +397,10 @@ def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
     # Return the image copy with boxes drawn
     return imcopy
 
+
 def draw_labeled_bboxes(img, labels):
     # Iterate through all detected cars
-    for car_number in range(1, labels[1]+1):
+    for car_number in range(1, labels[1] + 1):
         # Find pixels with each car_number label value
         nonzero = (labels[0] == car_number).nonzero()
         # Identify x and y values of those pixels
@@ -321,9 +409,10 @@ def draw_labeled_bboxes(img, labels):
         # Define a bounding box based on min/max x and y
         bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
         # Draw the box on the image
-        cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+        cv2.rectangle(img, bbox[0], bbox[1], (0, 0, 255), 6)
     # Return the image
     return img
+
 
 @cli.command()
 @click.option('-m', '--model', default="model.pkl",
@@ -348,9 +437,7 @@ def predict(model, output, input):
         colorspaces = [Color.YCrCb]
         hog_channels = ["ALL"]
         for colorspace, hog_channel in product(colorspaces, hog_channels):
-
             foo = predict_image(colorspace, hog_channel, img)
-
 
             print("Processed image %s to %s" % (fname, output_filename))
         cv2.imwrite(output_image, foo)
@@ -358,21 +445,48 @@ def predict(model, output, input):
     sys.exit()
 
 
-def predict_image(colorspace, hog_channel, img):
+previous_predicted_vehicles = collections.deque(maxlen=5)
+
+
+def predict_image(colorspace, hog_channel, img, use_previous_heatmap=False, lane_image=None):
     heat = np.zeros_like(img.image[:, :, 0]).astype(np.float)
     w = predict_vehicle(image=img, colorspace=colorspace, hog_channel=hog_channel)
     # Add heat to each box in box list
-    heat = add_heat(heat, w)
+    if use_previous_heatmap:
+        if len(previous_predicted_vehicles) == 5:
+            heat = add_heat(heat, previous_predicted_vehicles[0], factor=0.1)
+            heat = add_heat(heat, previous_predicted_vehicles[1], factor=0.3)
+            heat = add_heat(heat, previous_predicted_vehicles[2], factor=0.5)
+            heat = add_heat(heat, previous_predicted_vehicles[3], factor=0.7)
+            heat = add_heat(heat, previous_predicted_vehicles[4], factor=0.9)
+        previous_predicted_vehicles.append(w)
+    heat = add_heat(heat, w, factor=1)
     # Apply threshold to help remove false positives
-    heat = apply_threshold(heat, 5)
+    heat = apply_threshold(heat, 9)
     # Visualize the heatmap when displaying
-    heatmap = np.clip(heat, 0, 255)
-    labels = label(heatmap)
+    labels = label(heat)
+    heatmap = np.clip(heat, 0, 255).astype(np.uint8)
     # foo = image_model.call(img)
     # foo = draw_boxes(img.get_image(Color.BGR).image, w)
-    foo = draw_labeled_bboxes(img.get_image(Color.BGR).image, labels)
+    if lane_image:
+        image = lane_image
+    else:
+        image = img.get_image(Color.RGB)
+    foo = draw_labeled_bboxes(image.image, labels)
+    # heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_HOT)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_GRAY2RGB)
+
+    foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
+    foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
+    foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
+    foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
+    foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
+    foo = cv2.addWeighted(foo, 1.0, heatmap, 1.0, 0)
+    cv2.putText(foo, "%d" % np.max(heat), (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
+
     # foo = cv2.applyColorMap(heatmap, cv2.COLORMAP_HOT)
     return foo
+
 
 def process_video_image(image):
     """
@@ -381,7 +495,9 @@ def process_video_image(image):
     :return: The resulting image
     """
     img = Image(image=image, color=Color.RGB)
-    result = predict_image(Color.YCrCb, "ALL", img)
+    result = video_model.call(img).image
+    lane_img = Image(image=result, color=Color.RGB)
+    result = predict_image(Color.YCrCb, "ALL", img, use_previous_heatmap=True, lane_image=lane_img)
     return result
 
 
@@ -392,6 +508,8 @@ def process_video_image(image):
 @click.option('-i', '--input', multiple=True,
               help='The input image(s)')
 def videos(output, input):
+    global video_model
+    video_model = models['full']()
 
     videos = []
     for i in input:
