@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from itertools import product
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 import click
 import cv2
@@ -17,7 +18,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
-from lane.image import FileImage, Color
+from lane.image import FileImage, Color, Image
 
 
 def get_hog_features(img, orient, pix_per_cell, cell_per_block,
@@ -157,13 +158,13 @@ def predict_vehicle(model='model.pkl', image=None,
     X_scaler = joblib.load("scaler.pkl")
     r = []
 
-    for window in range(64, 192, 32):
+    for window in range(64, 160, 32):
         print("##### window %d" % window)
         # Reduce the sample size because HOG features are slow to compute
         # The quiz evaluator times out after 13s of CPU time
         bin_features = []
         window_list = slide_window(image.image, xy_window=(window, window), xy_overlap=(0.5, 0.5),
-                                   y_start_stop=[380, 656])
+                                   y_start_stop=[400, 656])
         for ((startx, starty), (endx, endy)) in window_list:
             i = image.crop(startx=startx, starty=starty,
                            endx=endx, endy=endy).scale((64, 64))
@@ -340,36 +341,70 @@ def predict(model, output, input):
 
     for idx, fname in enumerate(images):
         print(fname)
+        output_filename = "output_%d_%s" % (idx, os.path.basename(fname))
+        output_image = os.path.join(output, output_filename)
+        img = FileImage(filename=fname)
+
         colorspaces = [Color.YCrCb]
         hog_channels = ["ALL"]
         for colorspace, hog_channel in product(colorspaces, hog_channels):
-            output_filename = "output_%d_%s" % (idx, os.path.basename(fname))
-            output_image = os.path.join(output, output_filename)
-            img = FileImage(filename=fname)
-            heat = np.zeros_like(img.image[:, :, 0]).astype(np.float)
 
-            w = predict_vehicle(image=img, colorspace=colorspace, hog_channel=hog_channel)
-            # Add heat to each box in box list
-            heat = add_heat(heat, w)
+            foo = predict_image(colorspace, hog_channel, img)
 
-            # Apply threshold to help remove false positives
-            heat = apply_threshold(heat, 4)
-
-            # Visualize the heatmap when displaying
-            heatmap = np.clip(heat, 0, 255)
-            labels = label(heatmap)
-
-            # foo = image_model.call(img)
-            #foo = draw_boxes(img.get_image(Color.BGR).image, w)
-            foo = draw_labeled_bboxes(img.get_image(Color.BGR).image, labels)
-
-            print(len(w))
-            print(output_image)
-            #foo = cv2.applyColorMap(heatmap, cv2.COLORMAP_HOT)
-
-            cv2.imwrite(output_image, foo)
 
             print("Processed image %s to %s" % (fname, output_filename))
+        cv2.imwrite(output_image, foo)
+
+    sys.exit()
+
+
+def predict_image(colorspace, hog_channel, img):
+    heat = np.zeros_like(img.image[:, :, 0]).astype(np.float)
+    w = predict_vehicle(image=img, colorspace=colorspace, hog_channel=hog_channel)
+    # Add heat to each box in box list
+    heat = add_heat(heat, w)
+    # Apply threshold to help remove false positives
+    heat = apply_threshold(heat, 5)
+    # Visualize the heatmap when displaying
+    heatmap = np.clip(heat, 0, 255)
+    labels = label(heatmap)
+    # foo = image_model.call(img)
+    # foo = draw_boxes(img.get_image(Color.BGR).image, w)
+    foo = draw_labeled_bboxes(img.get_image(Color.BGR).image, labels)
+    # foo = cv2.applyColorMap(heatmap, cv2.COLORMAP_HOT)
+    return foo
+
+def process_video_image(image):
+    """
+    Helper for the video pipeline.
+    :param image: The unprocessed image from the video.
+    :return: The resulting image
+    """
+    img = Image(image=image, color=Color.RGB)
+    result = predict_image(Color.YCrCb, "ALL", img)
+    return result
+
+
+@cli.command()
+@click.option('-o', '--output', default=".",
+              help='The output directory',
+              type=click.Path(exists=True))
+@click.option('-i', '--input', multiple=True,
+              help='The input image(s)')
+def videos(output, input):
+
+    videos = []
+    for i in input:
+        videos.extend(glob.glob(i))
+
+    for idx, fname in enumerate(videos):
+        output_filename = "output_%d_%s" % (idx, os.path.basename(fname))
+        output_video = os.path.join(output, output_filename)
+        clip1 = VideoFileClip(fname)
+        white_clip = clip1.fl_image(process_video_image)  # NOTE: this function expects color images!!
+        white_clip.write_videofile(output_video, audio=False)
+        print("Processed video %s to %s" % (fname, output_filename))
+
     sys.exit()
 
 
