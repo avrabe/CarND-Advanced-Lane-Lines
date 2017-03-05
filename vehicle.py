@@ -440,6 +440,7 @@ def predict(model, output, input):
             foo = predict_image(colorspace, hog_channel, img)
 
             print("Processed image %s to %s" % (fname, output_filename))
+        foo = cv2.cvtColor(foo,cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_image, foo)
 
     sys.exit()
